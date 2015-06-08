@@ -28,14 +28,25 @@ function sendText(){
 
 function checkStatus(){
 	local ID=$1
-	curl -H "Authorization: Bearer $TOKEN" "https://api.telstra.com/v1/sms/messages/$ID"
-	echo
+	local RESP=$(curl -sH "Authorization: Bearer $TOKEN" "https://api.telstra.com/v1/sms/messages/$ID")
+	local PH=$(echo "$RESP" | grep -Po "to\":\"\K[0-9]+" | sed s/^61/0/)
+	local RECEIVED=$(echo "$RESP" | grep -Po "receivedTimestamp\":\"\K[\w:-]+")
+	local SENT=$(echo "$RESP" | grep -Po "sentTimestamp\":\"\K[\w:-]+")
+	local STATUS=$(echo "$RESP" | grep -Po "status\":\"\K\w+")
+	if [ -n "$STATUS" ] ; then
+		printf "%s | %s | %s | %s\n" "$PH" "$RECEIVED" "$SENT" "$STATUS"
+	fi
 }
 
 function checkResponse(){
 	local ID=$1
-	curl -H "Authorization: Bearer $TOKEN" "https://api.telstra.com/v1/sms/messages/$ID/response"
-	echo
+	local RESP=$(curl -sH "Authorization: Bearer $TOKEN" "https://api.telstra.com/v1/sms/messages/$ID/response")
+	local PH=$(echo "$RESP" | grep -Po "from\":\"\K[0-9]+" | sed s/^61/0/)
+	local TIME=$(echo "$RESP" | grep -Po "Timestamp\":\"\K[\w:-]+")
+	local CONTENT=$(echo "$RESP" | grep -Po "content\":\"\K.+(?=\")")
+	if [ -n "$TIME" ] ; then
+		printf "%s | %s | %s\n" "$PH" "$TIME" "$CONTENT"
+	fi	
 }
 
 function clrScreen(){
@@ -153,7 +164,8 @@ while true ; do
 		;;
 		5)
 			clrScreen
-			echo -ne "Check response\nEnter message id:\c"
+			echo "Checking all responses"
+			printf "%-10s | %-19s | %-s\n" "Mobile" "Date" "Message"
 			cat msg_ids | while read id ; do
 				checkResponse $id
 			done
