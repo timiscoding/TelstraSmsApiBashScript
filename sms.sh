@@ -62,10 +62,11 @@ while true ; do
 	M4='3. Check response'
 	M5='4. Check all statuses'
 	M6='5. Check all responses'
-	M7='q. Quit'
+	M7='6. Check message chain'
+	M8='q. Quit'
 	printf "%0.s=" {1..56} # print upper border
 	echo
-	for item in "$M0" "$M1" "$M2" "$M3" "$M4" "$M5" "$M6" "$M7" "$M0" ; do
+	for item in "$M0" "$M1" "$M2" "$M3" "$M4" "$M5" "$M6" "$M7" "$M8" "$M0" ; do
 		printf "| %-52s |\n" "$item" # longest string is 52 characters wide
 	done
 	printf "%0.s=" {1..56}
@@ -125,7 +126,7 @@ while true ; do
 					1)
 						echo sending text
 						sendText "$PH" "$MSG"
-						echo $MSG_ID >> msg_ids
+						echo "$MSG_ID|$PH|$(date +"%Y%m%d%H%M%S" | cut -c1-19)|$MSG" >> msg_ids
 						echo -e "To check status/response, use message id: ${MSG_ID}\nIt has been added to file msg_ids.\nPress ENTER to return"
 						read
 						break
@@ -140,6 +141,7 @@ while true ; do
 		2)
 			clrScreen
 			echo -ne "Check status\nEnter message id:\c"
+			printf "%-10s | %-19s | %-19s | %s\n" "Mobile" "Received" "Sent" "Status"
 			read id
 			checkStatus $id
 			echo "Press ENTER to return"
@@ -149,6 +151,7 @@ while true ; do
 			clrScreen
 			echo -ne "check response. Enter message id:\c"
 			read id
+			printf "%-10s | %-19s | %-s\n" "Mobile" "Date" "Message"
 			checkResponse $id
 			echo "Press ENTER to return"
 			read				 
@@ -156,21 +159,55 @@ while true ; do
 		4)
 			clrScreen
 			echo "Checking all statuses"
+			printf "%-10s | %-19s | %-19s | %s\n" "Mobile" "Received" "Sent" "Status"
+			OIFS=$IFS
+			IFS="|"
 			cat msg_ids | while read id ; do
 				checkStatus $id
 			done
+			IFS=$OIFS
 			echo "Press ENTER to return"
 			read				 
 		;;
 		5)
 			clrScreen
 			echo "Checking all responses"
+			OIFS=$IFS
+			IFS="|"
 			printf "%-10s | %-19s | %-s\n" "Mobile" "Date" "Message"
 			cat msg_ids | while read id ; do
 				checkResponse $id
 			done
+			IFS=$OIFS
 			echo "Press ENTER to return"
 			read				 
+		;;
+		6) 
+			clrScreen
+			echo -en "Checking message chain. Enter mobile:\c"
+			read CHAIN_MOBILE
+			printf "%-11s | %-19s | %-s\n" "In/Outbound" "Date" "Message"
+			cat msg_ids | grep $CHAIN_MOBILE | cut -d'|' -f2-4 | sed -r s/^.{10}/O/ >> TMP$$
+			
+			cat msg_ids | while read line ; do 
+				id=$(echo $line | cut -d'|' -f1)
+				TMP=$(checkResponse $id | grep $CHAIN_MOBILE)
+				if [ -n "$TMP" ] ; then
+					DATE=$(date -d $(echo "$TMP" | cut -d'|' -f2) +"%Y%m%d%H%M%S")
+					MSG=$(echo "$TMP" | cut -c36-)
+					printf "I|%s|%s\n" "$DATE" "$MSG" >> TMP$$
+				fi
+			done
+			SORTED=$(cat TMP$$ | sort -t'|' -n -k3)
+			[ -e TMP$$ ] && rm TMP$$
+			echo "$SORTED" | while read line ; do
+				DATE=$(echo "$line" | cut -d'|' -f2 | sed -r "s/(.{4})(.{2})(.{2})(.{2})(.{2})(.{2})/\1-\2-\3 \4:\5:\6/")
+				DIR=$(echo $line | cut -c1)
+				MSG=$(echo $line | cut -d'|' -f3)
+				printf "%-11s | %s | %s\n" "$DIR" "$DATE" "$MSG"
+			done
+			echo "Press ENTER to return"
+			read
 		;;
 		q)
 			clrScreen
