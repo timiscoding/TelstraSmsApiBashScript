@@ -42,10 +42,10 @@ function checkResponse(){
 	local ID=$1
 	local RESP=$(curl -sH "Authorization: Bearer $TOKEN" "https://api.telstra.com/v1/sms/messages/$ID/response")
 	local PH=$(echo "$RESP" | grep -Po "from\":\"\K[0-9]+" | sed s/^61/0/)
-	local TIME=$(echo "$RESP" | grep -Po "Timestamp\":\"\K[\w:-]+")
+	local DATE=$(echo "$RESP" | grep -Po "Timestamp\":\"\K[\w:-]+")
 	local CONTENT=$(echo "$RESP" | grep -Po "content\":\"\K.+(?=\")")
-	if [ -n "$TIME" ] ; then
-		printf "%s | %s | %s\n" "$PH" "$TIME" "$CONTENT"
+	if [ -n "$DATE" ] ; then
+		printf "%s | %s | %s\n" "$PH" "$DATE" "$CONTENT"
 	fi	
 }
 
@@ -126,7 +126,8 @@ while true ; do
 					1)
 						echo sending text
 						sendText "$PH" "$MSG"
-						echo "$MSG_ID|$PH|$(date +"%Y%m%d%H%M%S" | cut -c1-19)|$MSG" >> msg_ids
+						echo "$MSG_ID|$PH" >> msg_ids
+						echo "OUTBOUND|$PH|$(date +"%Y%m%d%H%M%S" | cut -c1-19)|$MSG" >> msg_ids
 						echo -e "To check status/response, use message id: ${MSG_ID}\nIt has been added to file msg_ids.\nPress ENTER to return"
 						read
 						break
@@ -141,8 +142,8 @@ while true ; do
 		2)
 			clrScreen
 			echo -ne "Check status\nEnter message id:\c"
-			printf "%-10s | %-19s | %-19s | %s\n" "Mobile" "Received" "Sent" "Status"
 			read id
+			printf "%-10s | %-19s | %-19s | %s\n" "Mobile" "Received" "Sent" "Status"
 			checkStatus $id
 			echo "Press ENTER to return"
 			read				 
@@ -187,18 +188,27 @@ while true ; do
 			echo -en "Checking message chain. Enter mobile:\c"
 			read CHAIN_MOBILE
 			printf "%-11s | %-19s | %-s\n" "In/Outbound" "Date" "Message"
-			cat msg_ids | grep $CHAIN_MOBILE | cut -d'|' -f2-4 | sed -r s/^.{10}/O/ >> TMP$$
+			ROWS=$(cat msg_ids | grep $CHAIN_MOBILE) 
 			
-			cat msg_ids | while read line ; do 
-				id=$(echo $line | cut -d'|' -f1)
-				TMP=$(checkResponse $id | grep $CHAIN_MOBILE)
-				if [ -n "$TMP" ] ; then
-					DATE=$(date -d $(echo "$TMP" | cut -d'|' -f2) +"%Y%m%d%H%M%S")
-					MSG=$(echo "$TMP" | cut -c36-)
+			echo "$ROWS" | while read line ; do 
+				ID=$(echo $line | cut -d'|' -f1)
+				DATE=$(echo "$line" | cut -d'|' -f3)
+				MSG=$(echo "$line" | cut -d'|' -f4)
+				if [ "$ID" = "OUTBOUND" ] ; then
+					printf "O|%s|%s\n" "$DATE" "$MSG" >> TMP$$
+				else # inbound. ie. ID is a msg_id 
+					if [ -z "$MSG" ] ; then
+						RESP=$(checkResponse "$ID")
+						[ -z "$RESP" ] && continue
+						DATE=$(echo "$RESP" | cut -d'|' -f2 | sed s/\s//g)
+						DATE=$(date -d "$DATE" +"%Y%m%d%H%M%S")
+						MSG=$(echo "$RESP" | cut -d'|' -f3 | cut -c2-)
+						sed -r -iOLD "s/$ID.*/&\|$DATE\|$MSG/" msg_ids
+					fi
 					printf "I|%s|%s\n" "$DATE" "$MSG" >> TMP$$
 				fi
 			done
-			SORTED=$(cat TMP$$ | sort -t'|' -n -k3)
+			SORTED=$(cat TMP$$ | sort -t'|' -n -k2)
 			[ -e TMP$$ ] && rm TMP$$
 			echo "$SORTED" | while read line ; do
 				DATE=$(echo "$line" | cut -d'|' -f2 | sed -r "s/(.{4})(.{2})(.{2})(.{2})(.{2})(.{2})/\1-\2-\3 \4:\5:\6/")
