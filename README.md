@@ -1,5 +1,5 @@
 # TelstraSmsApiBashScript
-[Telstra SMS API](https://dev.telstra.com/content/sms-api-0) currently lets you send text messages to any Australian mobile phone number [for free for the time being](https://dev.telstra.com/pricing).  100 text limit per day. 
+[Telstra SMS API](https://dev.telstra.com/content/sms-api-0) currently lets you send text messages to any Australian mobile phone number [for free for the time being as it undergoes beta testing](https://dev.telstra.com/pricing).  100 text limit per day. 
 
 To use this script, all you have to do is [register for a free T.Dev account](https://dev.telstra.com/).  
 

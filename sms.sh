@@ -19,11 +19,14 @@ function sendText(){
 	PHONE=$1
 	MSG=$2
 
-	MSG_ID=$(
+	local RESP=$(
 		curl -s -H "Content-Type: application/json" \
 		-H "Authorization: Bearer $TOKEN" \
 		-d "{\"to\":\"$PHONE\", \"body\":\"$MSG\"}" \
-		"https://api.telstra.com/v1/sms/messages" | grep -Po "messageId\":\"\K\w+")
+		"https://api.telstra.com/v1/sms/messages") 
+	SERVER_STATUS=$(echo "$RESP" | grep -Po "status\":\s\K[0-9]+")
+	SERVER_MSG=$(echo "$RESP" | grep -Po "message\":\s\K[\w\s]+")
+	MSG_ID=$(echo "$RESP" | grep -Po "messageId\":\"\K\w+")
 }
 
 function checkStatus(){
@@ -78,7 +81,7 @@ while true ; do
 			clrScreen
 			echo -ne "Send text\nEnter phone number:\c"
 			read PH
-	 clrScreen
+	 		clrScreen
 			OIFS=$IFS
 			IFS='
 '
@@ -126,6 +129,11 @@ while true ; do
 					1)
 						echo sending text
 						sendText "$PH" "$MSG"
+	if [ -z "$MSG_ID" ] ; then
+		echo -e "Server error $SERVER_STATUS: $SERVER_MSG\nPress ENTER to return"
+		read
+		continue 2
+	fi
 						echo "$MSG_ID|$PH" >> msg_ids
 						echo "OUTBOUND|$PH|$(date +"%Y%m%d%H%M%S" | cut -c1-19)|$MSG" >> msg_ids
 						echo -e "To check status/response, use message id: ${MSG_ID}\nIt has been added to file msg_ids.\nPress ENTER to return"
@@ -187,9 +195,9 @@ while true ; do
 			clrScreen
 			echo -en "Checking message chain. Enter mobile:\c"
 			read CHAIN_MOBILE
-			printf "%-11s | %-19s | %-s\n" "In/Outbound" "Date" "Message"
 			ROWS=$(cat msg_ids | grep $CHAIN_MOBILE) 
-			
+			[ -z "$ROWS" ] && { echo "No messages for this number. Press ENTER to return"; read; continue; }
+			printf "%-11s | %-19s | %-s\n" "In/Outbound" "Date" "Message"
 			echo "$ROWS" | while read line ; do 
 				ID=$(echo $line | cut -d'|' -f1)
 				DATE=$(echo "$line" | cut -d'|' -f3)
