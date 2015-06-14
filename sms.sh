@@ -1,30 +1,14 @@
 #!/bin/bash
-if [ $# -ne 1 ] ; then
-	echo -e "Usage: $0 {api key file}\nIf you don't have an app key/secret, sign up for a T.Dev account at https://dev.telstra.com/ and create a new app using the SMS API.  Put the app key on line 1 and app secret on line 2 of the api key file"
-	exit 1
-fi
-if [ $# -eq 1 ] ; then
-	if [ -e $1 ] ; then
-		APP_KEY=$(cat $1 | head -n1)
-		APP_SECRET=$(cat $1 | tail -n1)
-	else
-		echo "api key file not found."
-		exit 1
-	fi
-fi
-
-TOKEN=$(curl -s "https://api.telstra.com/v1/oauth/token?client_id=$APP_KEY&client_secret=$APP_SECRET&grant_type=client_credentials&scope=SMS" | grep -Po "access_token\": \"\K\w+")
-
+MSG_ID_FILE="msg_ids" # store message id and outbound sms data
 function sendText(){
 	PHONE=$1
-	MSG=$2
-
+	MSG=$(echo "$2" | sed 's/"/\\\"/g')
 	local RESP=$(
 		curl -s -H "Content-Type: application/json" \
 		-H "Authorization: Bearer $TOKEN" \
 		-d "{\"to\":\"$PHONE\", \"body\":\"$MSG\"}" \
 		"https://api.telstra.com/v1/sms/messages") 
-	SERVER_STATUS=$(echo "$RESP" | grep -Po "status\":\s\K[0-9]+")
+	SERVER_STATUS=$(echo "$RESP" | grep -Po "status\":\s\K\d+")
 	SERVER_MSG=$(echo "$RESP" | grep -Po "message\":\s\K[\w\s]+")
 	MSG_ID=$(echo "$RESP" | grep -Po "messageId\":\"\K\w+")
 }
@@ -32,7 +16,7 @@ function sendText(){
 function checkStatus(){
 	local ID=$1
 	local RESP=$(curl -sH "Authorization: Bearer $TOKEN" "https://api.telstra.com/v1/sms/messages/$ID")
-	local PH=$(echo "$RESP" | grep -Po "to\":\"\K[0-9]+" | sed s/^61/0/)
+	local PH=$(echo "$RESP" | grep -Po "to\":\"\K\d+" | sed s/^61/0/)
 	local RECEIVED=$(echo "$RESP" | grep -Po "receivedTimestamp\":\"\K[\w:-]+")
 	local SENT=$(echo "$RESP" | grep -Po "sentTimestamp\":\"\K[\w:-]+")
 	local STATUS=$(echo "$RESP" | grep -Po "status\":\"\K\w+")
@@ -44,7 +28,7 @@ function checkStatus(){
 function checkResponse(){
 	local ID=$1
 	local RESP=$(curl -sH "Authorization: Bearer $TOKEN" "https://api.telstra.com/v1/sms/messages/$ID/response")
-	local PH=$(echo "$RESP" | grep -Po "from\":\"\K[0-9]+" | sed s/^61/0/)
+	local PH=$(echo "$RESP" | grep -Po "from\":\"\K\d+" | sed s/^61/0/)
 	local DATE=$(echo "$RESP" | grep -Po "Timestamp\":\"\K[\w:-]+")
 	local CONTENT=$(echo "$RESP" | grep -Po "content\":\"\K.+(?=\")")
 	if [ -n "$DATE" ] ; then
@@ -55,6 +39,26 @@ function checkResponse(){
 function clrScreen(){
 	printf "\033c" # clears screen. compatible with VT100 terminals
 }
+
+if [ $# -ne 1 -a $# -ne 3 ] ; then
+	echo -e "Usage: $0 {api key file} [mobile "message"]\n\tmobile - eg.0412345678\n\tmessage - Message must be wrapped in double quotes.  The script converts double quotes in the message to single quotes. If longer than 160 characters, message is truncated\nIf you don't have an app key/secret, sign up for a T.Dev account at https://dev.telstra.com/ and create a new app using the SMS API.  Put the app key on line 1 and app secret on line 2 of the api key file"
+	exit 1
+fi
+if [ -e $1 ] ; then
+	APP_KEY=$(cat $1 | head -n1)
+	APP_SECRET=$(cat $1 | tail -n1)
+	TOKEN=$(curl -s "https://api.telstra.com/v1/oauth/token?client_id=$APP_KEY&client_secret=$APP_SECRET&grant_type=client_credentials&scope=SMS" | grep -Po "access_token\": \"\K\w+")
+else
+	echo "api key file not found."
+	exit 1
+fi
+if [ $# -eq 3 ] ; then
+	sendText "$2" "${3:0:160}"
+	echo -e "Message sent. To check status/response, use message id: ${MSG_ID}\nIt has been added to file ${MSG_ID_FILE}."
+	echo "$MSG_ID|$2" >> "$MSG_ID_FILE"
+	echo "OUTBOUND|$2|$(date +"%Y%m%d%H%M%S" | cut -c1-19)|$3" >> "$MSG_ID_FILE"
+	exit 0
+fi
 
 while true ; do
 	clrScreen
@@ -75,7 +79,6 @@ while true ; do
 	printf "%0.s=" {1..56}
 	echo -en "\nChoice:\c"
 	read CHOICE
-	
 	case $CHOICE in
 		1)
 			clrScreen
@@ -129,14 +132,14 @@ while true ; do
 					1)
 						echo sending text
 						sendText "$PH" "$MSG"
-	if [ -z "$MSG_ID" ] ; then
-		echo -e "Server error $SERVER_STATUS: $SERVER_MSG\nPress ENTER to return"
-		read
-		continue 2
-	fi
-						echo "$MSG_ID|$PH" >> msg_ids
-						echo "OUTBOUND|$PH|$(date +"%Y%m%d%H%M%S" | cut -c1-19)|$MSG" >> msg_ids
-						echo -e "To check status/response, use message id: ${MSG_ID}\nIt has been added to file msg_ids.\nPress ENTER to return"
+						if [ -z "$MSG_ID" ] ; then
+							echo -e "Server error $SERVER_STATUS: $SERVER_MSG\nPress ENTER to return"
+							read
+							continue 2
+						fi
+						echo "$MSG_ID|$PH" >> "$MSG_ID_FILE"
+						echo "OUTBOUND|$PH|$(date +"%Y%m%d%H%M%S" | cut -c1-19)|$MSG" >> "$MSG_ID_FILE"
+						echo -e "Message sent. To check status/response, use message id: ${MSG_ID}\nIt has been added to file ${MSG_ID_FILE}.\nPress ENTER to return"
 						read
 						break
 					;;
@@ -171,7 +174,7 @@ while true ; do
 			printf "%-10s | %-19s | %-19s | %s\n" "Mobile" "Received" "Sent" "Status"
 			OIFS=$IFS
 			IFS="|"
-			cat msg_ids | while read id ; do
+			cat "$MSG_ID_FILE" | while read id ; do
 				checkStatus $id
 			done
 			IFS=$OIFS
@@ -184,7 +187,7 @@ while true ; do
 			OIFS=$IFS
 			IFS="|"
 			printf "%-10s | %-19s | %-s\n" "Mobile" "Date" "Message"
-			cat msg_ids | while read id ; do
+			cat "$MSG_ID_FILE" | while read id ; do
 				checkResponse $id
 			done
 			IFS=$OIFS
@@ -195,7 +198,7 @@ while true ; do
 			clrScreen
 			echo -en "Checking message chain. Enter mobile:\c"
 			read CHAIN_MOBILE
-			ROWS=$(cat msg_ids | grep $CHAIN_MOBILE) 
+			ROWS=$(cat "$MSG_ID_FILE" | grep $CHAIN_MOBILE) 
 			[ -z "$ROWS" ] && { echo "No messages for this number. Press ENTER to return"; read; continue; }
 			printf "%-11s | %-19s | %-s\n" "In/Outbound" "Date" "Message"
 			echo "$ROWS" | while read line ; do 
@@ -211,7 +214,7 @@ while true ; do
 						DATE=$(echo "$RESP" | cut -d'|' -f2 | sed s/\s//g)
 						DATE=$(date -d "$DATE" +"%Y%m%d%H%M%S")
 						MSG=$(echo "$RESP" | cut -d'|' -f3 | cut -c2-)
-						sed -r -iOLD "s/$ID.*/&\|$DATE\|$MSG/" msg_ids
+						sed -r -iOLD "s/$ID.*/&\|$DATE\|$MSG/" "$MSG_ID_FILE"
 					fi
 					printf "I|%s|%s\n" "$DATE" "$MSG" >> TMP$$
 				fi
