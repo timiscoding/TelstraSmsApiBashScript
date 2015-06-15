@@ -7,6 +7,7 @@
 - [Requirements](#requirements)
 - [Before running the script](#before-running-the-script)
 - [Running the script](#running-the-script)
+- [Limitations](#limitations)
 
 <!-- /MarkdownTOC -->
 
@@ -40,3 +41,7 @@ The script can also be run interactively: `./sms.sh <key file>`.  This lets you:
 2. check status - see if your message/s got delivered given a message id
 3. check response/s - see the replies to your messages given a message id
 4. check message chain - see all replies given a mobile number
+
+## Limitations
+
+* When typing a message in interactive mode, use backspace to delete.  Currently, you can't move the cursor or use delete to edit.

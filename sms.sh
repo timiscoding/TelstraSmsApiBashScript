@@ -95,11 +95,11 @@ while true ; do
 			echo "${STATUS1}0$STATUS2"
 			while read -sn1 ch ; do
 				clrScreen
-				if [ "$ch" == $'\177' ] ; then  # char is backspace 
+				if [ "$ch" == $'\177' -o "$ch" == $'\010' ] ; then  # char is delete or backspace 
 					if [ "$MSG_LEN" -gt 0 ] ; then
 						MSG="${MSG%?}"
-						echo "$STATUS1$((--MSG_LEN))$STATUS2"
-						echo -ne "$MSG \r"
+						echo "$STATUS1$((--MSG_LEN))${STATUS2}"
+						echo -ne "$MSG"
 					else
 						echo "$STATUS1$MSG_LEN$STATUS2"	
 					fi
@@ -107,7 +107,7 @@ while true ; do
 					if [ $MSG_LEN -eq 0 ] ; then
 						ERROR='ERROR: Message empty. Please type something'
 						echo "$STATUS1$MSG_LEN${STATUS2}$ERROR"
-						echo -ne "$MSG \r"
+						echo -ne "$MSG"
 					else
 						break  
 					fi
@@ -115,11 +115,11 @@ while true ; do
 					if [ $MSG_LEN -ge 160 ] ; then
 						ERROR='ERROR: Max message size reached'
 						echo "$STATUS1$MSG_LEN${STATUS2}$ERROR"
-						echo -ne "$MSG \r"
+						echo -ne "$MSG"
 					else
 						MSG=$MSG$ch
-						echo "$STATUS1$((++MSG_LEN))$STATUS2"
-						echo -ne "$MSG \r"
+						echo "$STATUS1$((++MSG_LEN))${STATUS2}"
+						echo -ne "$MSG"
 					fi
 				fi
 			done
