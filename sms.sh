@@ -37,7 +37,7 @@ function checkResponse(){
 }
 
 function clrScreen(){
-	printf "\033c" # clears screen. compatible with VT100 terminals
+	printf "\033c\r" # clears screen. compatible with VT100 terminals
 }
 
 if [ $# -ne 1 -a $# -ne 3 ] ; then
@@ -99,7 +99,7 @@ while true ; do
 					if [ "$MSG_LEN" -gt 0 ] ; then
 						MSG="${MSG%?}"
 						echo "$STATUS1$((--MSG_LEN))${STATUS2}"
-						echo -ne "$MSG"
+						echo -n "$MSG"
 					else
 						echo "$STATUS1$MSG_LEN$STATUS2"	
 					fi
@@ -107,7 +107,7 @@ while true ; do
 					if [ $MSG_LEN -eq 0 ] ; then
 						ERROR='ERROR: Message empty. Please type something'
 						echo "$STATUS1$MSG_LEN${STATUS2}$ERROR"
-						echo -ne "$MSG"
+						echo -n "$MSG"
 					else
 						break  
 					fi
@@ -115,11 +115,11 @@ while true ; do
 					if [ $MSG_LEN -ge 160 ] ; then
 						ERROR='ERROR: Max message size reached'
 						echo "$STATUS1$MSG_LEN${STATUS2}$ERROR"
-						echo -ne "$MSG"
+						echo -n "$MSG"
 					else
 						MSG=$MSG$ch
 						echo "$STATUS1$((++MSG_LEN))${STATUS2}"
-						echo -ne "$MSG"
+						echo -n "$MSG"
 					fi
 				fi
 			done

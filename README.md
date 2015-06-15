@@ -19,6 +19,8 @@ This script enables you to send SMS and check delivery status and any replies re
 
 ## Requirements
 * Linux system, bash & curl
+* Tested working in Cygwin (bash 4.3.39(2)-release, curl 7.42.1)
+* Tested working in Ubuntu (bash 4.3.11(1)-release, curl 7.35.0)
 
 ## Before running the script
 To use this script, [register for a free T.Dev account](https://dev.telstra.com/).  
