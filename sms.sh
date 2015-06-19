@@ -297,7 +297,7 @@ function optStatuses(){
 			if [ -t 0 ] ; then stty $SAVE_TERM; fi
 			return
 		fi
-	done
+	done 
 	if [ -t 0 ] ; then stty $SAVE_TERM; fi
 	if [ $res_count -gt 0 ] ; then
 		SCREEN_PROMPT="Found $res_count results from $msg_id_count message IDs:\n\n$(printf "%-10s | %-19s | %-19s | %s\n" "Mobile" "Received" "Sent" "Status")\n$all_res\nPress ENTER to return"
@@ -453,6 +453,14 @@ function optMessageChain(){
 	IFS=$OIFS
 }
 
+function clean_up() {
+	printf "\033c\r" # clears screen. compatible with VT100 terminals
+	echo "Cleaning up before exit. Restore $MSG_ID_FILE with ${MSG_ID_FILE}OLD if needed" 
+	[ -e TMP$$ ] && rm TMP$$
+	stty $SAVE_TERM
+	exit 1
+}
+
 if [ $# -ne 1 -a $# -ne 3 ] ; then
 	echo -e "Usage: $0 {api key file} [mobile "message"]\n\tmobile - eg.0412345678\n\tmessage - Message must be wrapped in double quotes.  If longer than 160 characters, message is truncated\nIf you don't have an app key/secret, sign up for a T.Dev account at https://dev.telstra.com/ and create a new app using the SMS API.  Put the app key on line 1 and app secret on line 2 of the api key file"
 	exit 1
@@ -473,6 +481,7 @@ if [ $# -eq 3 ] ; then	# send text message from command line
 	exit 0
 fi
 
+trap clean_up SIGINT SIGTERM
 while true ; do
 	SCREEN_TITLE="Main Menu"
 	SCREEN_PROMPT="Send up to 100 SMS free per day to any Australian mobile
