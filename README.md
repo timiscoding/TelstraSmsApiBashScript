@@ -7,7 +7,6 @@
 - [Requirements](#requirements)
 - [Before running the script](#before-running-the-script)
 - [Running the script](#running-the-script)
-- [Limitations](#limitations)
 
 <!-- /MarkdownTOC -->
 
@@ -15,10 +14,10 @@
 ## Intro 
 [Telstra SMS API](https://dev.telstra.com/content/sms-api-0) currently lets you send text messages to any Australian mobile phone number [for free for the time being as it undergoes beta testing](https://dev.telstra.com/pricing).  100 text limit per day. 
 
-This script enables you to send SMS and check delivery status and any replies received.
+This script enables you to send SMS, check delivery status and any replies received.
 
 ## Requirements
-* Linux system, bash & curl
+* Linux system, bash 3+ & curl
 * Tested working in Cygwin (bash 4.3.39(2)-release, curl 7.42.1)
 * Tested working in Ubuntu (bash 4.3.11(1)-release, curl 7.35.0)
 
@@ -39,11 +38,7 @@ The fastest way to send SMS is to run the script with command line args: `./sms.
 
 The script can also be run interactively: `./sms.sh <key file>`.  This lets you:
 
-1. send sms - with a character counter and confirm screen
+1. send sms - with a message character count checker and confirm screen
 2. check status - see if your message/s got delivered given a message id
 3. check response/s - see the replies to your messages given a message id
 4. check message chain - see all replies given a mobile number
-
-## Limitations
-
-* When typing a message in interactive mode, use backspace to delete.  Currently, you can't move the cursor or use delete to edit.
