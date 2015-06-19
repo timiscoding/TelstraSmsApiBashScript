@@ -3,6 +3,7 @@
 
 #!/bin/bash
 MSG_ID_FILE="msg_ids" # store message id and outbound sms data
+TMP_FILE="temp.sms.sh.$$.$RANDOM"	# tmp file to store results for optMessageChain
 NTA='\033[0m' # No text attributes
 BOLD_RED='\033[31;1;40m'  
 INV='\033[47;30m' # dark grey background, white text
@@ -140,13 +141,14 @@ function optSendText(){
 	local s1="1. Enter mobile"
 	local s2="2. Enter message"
 	local s3="3. Confirmation screen"
-	SCREEN_PROMPT="${BOLD}${s1}${NTA}\n${s2}\n${s3}"
+	SCREEN_PROMPT="${BOLD}${s1}${NTA}\n${s2}\n${s3}\n\n b) Back to main menu"
 	local ph
 	local msg
 	local res	# message ID result
 	showScreen
 	getInput PH "" "Enter mobile:"
 	ph="$RETURN_VAL"
+	[ "$ph" = b ] && return
 	SCREEN_PROMPT="${s1}\n${BOLD}${s2}${NTA}\n${s3}"
 	showScreen
 	getInput MSG "" "Enter text message (160 char limit):"
@@ -287,7 +289,7 @@ function optStatuses(){
 	msg_id_count=$(echo "$msg_ids" | wc -l)
 	if [ -t 0 ] ; then stty -echo -icanon time 0 min 0; fi		# set non-blocking user input
 	for id in $msg_ids ; do
-		key="$(cat)"	# read for any user input during data collection
+		key="$(cat 2>/dev/null)"	# read for any user input during data collection. redirect to /dev/null is to stop 'resource temporarily unavail' error in cygwin
 		SCREEN_PROMPT="Checking all statuses in file ${MSG_ID_FILE}\n\n${BOLD_YELLOW}Processing message ID $((++i)) / $msg_id_count${NTA}\n\nc) Cancel operation"
 		showScreen
 		checkStatus $id
@@ -327,7 +329,7 @@ function optResponses(){
 	msg_id_count=$(echo "$msg_ids" | wc -l)
 	if [ -t 0 ] ; then stty -echo -icanon time 0 min 0; fi
 	for id in $msg_ids ; do
-		key="$(cat)"
+		key="$(cat 2>/dev/null)"
 		SCREEN_PROMPT="Checking all responses in file ${MSG_ID_FILE}\n\n${BOLD_YELLOW}Processing message ID $((++i)) / $msg_id_count${NTA}\n\nc) Cancel operation"
 		showScreen
 		checkResponse $id	
@@ -375,10 +377,12 @@ function optMessageChain(){
 		all_res=
 		i=0
 		SCREEN_TITLE="Check Message Chain"
-		SCREEN_PROMPT="Retrieve a chronological sorted list of inbound and outbound messages."
+		SCREEN_PROMPT="Retrieve a chronological sorted list of inbound and outbound messages.\n\nb) Back to main menu"
 		showScreen
 		getInput PH "$ph" "Enter mobile:"
 		ph="$RETURN_VAL"
+		[ -z "$ph" ] && continue;
+		[ "$ph" = b ] && break;
 		rows=$(cat "$MSG_ID_FILE" | grep -P "[^\|]+\|$ph") 
 		row_count=$(echo "$rows" | wc -l)
 		if [ -z "$rows" ] ; then 
@@ -394,14 +398,14 @@ function optMessageChain(){
 		fi
 		if [ -t 0 ] ; then stty -echo -icanon time 0 min 0; fi
 		for line in $rows ; do
-			key="$(cat)"
+			key="$(cat 2>/dev/null)"
 			SCREEN_PROMPT="Retrieving message chain for mobile: $ph\n\n${BOLD_YELLOW}Processing row $((++i)) / $row_count${NTA}\n\nc) Cancel operation"
 			showScreen
 			msg_id=$(echo "$line" | cut -d'|' -f1)
 			date=$(echo "$line" | cut -d'|' -f3)
 			msg=$(echo "$line" | cut -d'|' -f4)
 			if [ "$msg_id" = "OUTBOUND" ] ; then
-				printf "O|%s|%s\n" "$date" "$msg" >> TMP$$
+				printf "O|%s|%s\n" "$date" "$msg" >> "$TMP_FILE"
 			else # inbound. a message id 
 				if [ -z "$msg" ] ; then
 					checkResponse "$msg_id"
@@ -412,7 +416,7 @@ function optMessageChain(){
 					msg=$(echo "$resp" | cut -d'|' -f3 | cut -c2-)
 					sed -r -iOLD "s/${msg_id}.*/&\|$date\|$msg/" "$MSG_ID_FILE"
 				fi
-				printf "I|%s|%s\n" "$date" "$msg" >> TMP$$
+				printf "I|%s|%s\n" "$date" "$msg" >> "$TMP_FILE"
 			fi
 			if [[ "$key" =~ c ]] ; then
 				if [ -t 0 ] ; then stty $SAVE_TERM; fi
@@ -420,12 +424,12 @@ function optMessageChain(){
 				break 2
 			fi
 		done
-		sorted=$(cat TMP$$ | sort -t'|' -n -k2) # sort messages by time in ascending order
-		[ -e TMP$$ ] && rm TMP$$
+		sorted=$(cat "$TMP_FILE" | sort -t'|' -n -k2) # sort messages by time in ascending order
+		[ -e "$TMP_FILE" ] && rm "$TMP_FILE"
 		i=0
 		row_count=$(echo "$sorted" | wc -l)
 		for line in $sorted ; do
-			key="$(cat)"
+			key="$(cat 2>/dev/null)"
 			SCREEN_PROMPT="Generating results...\n\n${BOLD_YELLOW}Processing row $((++i)) / $row_count${NTA}\n\nc) Cancel operation"
 			showScreen
 			date=$(echo "$line" | cut -d'|' -f2 | sed -r "s/(.{4})(.{2})(.{2})(.{2})(.{2})(.{2})/\1-\2-\3 \4:\5:\6/") # convert time field to human readable format
@@ -456,7 +460,7 @@ function optMessageChain(){
 function clean_up() {
 	printf "\033c\r" # clears screen. compatible with VT100 terminals
 	echo "Cleaning up before exit. Restore $MSG_ID_FILE with ${MSG_ID_FILE}OLD if needed" 
-	[ -e TMP$$ ] && rm TMP$$
+	[ -e "$TMP_FILE" ] && rm "$TMP_FILE"
 	stty $SAVE_TERM
 	exit 1
 }
@@ -482,6 +486,7 @@ if [ $# -eq 3 ] ; then	# send text message from command line
 fi
 
 trap clean_up SIGINT SIGTERM
+
 while true ; do
 	SCREEN_TITLE="Main Menu"
 	SCREEN_PROMPT="Send up to 100 SMS free per day to any Australian mobile
