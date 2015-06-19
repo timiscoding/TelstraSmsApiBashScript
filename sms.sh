@@ -22,8 +22,8 @@ SAVE_TERM="$(stty -g)"	# save term settings
 ############
 
 function sendText(){
-	local phone=$2
-	local msg=$(echo "$3" | sed 's/"/\\\"/g')
+	local phone=$1
+	local msg=$(echo "$2" | sed 's/"/\\\"/g')		# double quotes need to be escaped for JSON 
 	local resp=$(
 		curl -s -H "Content-Type: application/json" \
 		-H "Authorization: Bearer $TOKEN" \
@@ -33,10 +33,10 @@ function sendText(){
 	local server_msg=$(echo "$resp" | grep -Po "message\":\s\K[\w\s]+")
 	local msg_id=$(echo "$resp" | grep -Po "messageId\":\"\K\w+")
 	if [ -n "$msg_id" ] ; then
-		eval "$1=\"$msg_id\""
+		RETURN_VAL="$msg_id"
 		return 0
 	else
-		eval "$1='${server_status} ${server_msg}'"
+		RETURN_VAL="${server_status} ${server_msg}"
 		return 1
 	fi
 }
@@ -145,6 +145,7 @@ function optSendText(){
 	local ph
 	local msg
 	local res	# message ID result
+	local exitCode
 	showScreen
 	getInput PH "" "Enter mobile:"
 	ph="$RETURN_VAL"
@@ -173,8 +174,10 @@ function optSendText(){
 			3)
 				SCREEN_PROMPT="${BOLD_YELLOW}Sending text ...${NTA}"
 				showScreen
-				sendText res "$ph" "$msg"
-				if [ $? -ne 0 ] ; then
+				sendText "$ph" "$msg"
+				exitCode=$?
+				res="$RETURN_VAL"
+				if [ $exitCode -ne 0 ] ; then
 					SCREEN_PROMPT="${BOLD_RED}Server error $res${NTA}\n\nPress ENTER to return"
 					showScreen
 					read
@@ -479,10 +482,15 @@ else
 fi
 if [ $# -eq 3 ] ; then	# send text message from command line
 	sendText "$2" "${3:0:160}"
-	echo -e "Message sent. To check status/response, use message id: ${MSG_ID}\nIt has been added to file ${MSG_ID_FILE}."
-	echo "$MSG_ID|$2" >> "$MSG_ID_FILE"
-	echo "OUTBOUND|$2|$(date +"%Y%m%d%H%M%S" | cut -c1-19)|$3" >> "$MSG_ID_FILE"
-	exit 0
+	if [ $? -eq 0 ] ; then
+		echo -e "Message sent. To check status/response, use message id: ${RETURN_VAL}\nIt has been added to file ${MSG_ID_FILE}."
+		echo "$RETURN_VAL|$2" >> "$MSG_ID_FILE"
+		echo "OUTBOUND|$2|$(date +"%Y%m%d%H%M%S" | cut -c1-19)|$3" >> "$MSG_ID_FILE"
+		exit 0
+	else
+		echo "Message not sent. Server error $RETURN_VAL"
+		exit 1
+	fi
 fi
 
 trap clean_up SIGINT SIGTERM
