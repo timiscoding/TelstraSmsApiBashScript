@@ -2,7 +2,7 @@
 # github.com/timiscoding
 
 #!/bin/bash
-MSG_ID_FILE="msg_ids" # store message id and outbound sms data
+DATA_FILE="msg_ids" # store message id and outbound sms data
 TMP_FILE="temp.sms.sh.$$.$RANDOM"	# tmp file to store results for optMessageChain
 NTA='\033[0m' # No text attributes
 BOLD_RED='\033[31;1;40m'  
@@ -20,7 +20,6 @@ SAVE_TERM="$(stty -g)"	# save term settings
 # sendText - make Telstra API call to send a text message
 # 
 ############
-
 function sendText(){
 	local phone=$1
 	local msg=$(echo "$2" | sed 's/"/\\\"/g')		# double quotes need to be escaped for JSON 
@@ -46,7 +45,6 @@ function sendText(){
 # checkStatus - make Telstra API call to get delivery status for a message
 #
 ############
-
 function checkStatus(){
 	RETURN_VAL=
 	local id=$1
@@ -56,7 +54,7 @@ function checkStatus(){
 	local sent=$(echo "$resp" | grep -Po "sentTimestamp\":\"\K[\w:-]+")
 	local status=$(echo "$resp" | grep -Po "status\":\"\K\w+")
 	if [ -n "$status" ] ; then
-		RETURN_VAL="$(printf "%s | %s | %s | %s\n" "$ph" "$received" "$sent" "$status")"
+		RETURN_VAL="$(printf "%10s | %19s | %19s | %s\n" "$ph" "$received" "$sent" "$status")"
 	fi
 }
 
@@ -65,7 +63,6 @@ function checkStatus(){
 # checkResponse - make Telstra API call to get reply for a message
 #
 ###########
-
 function checkResponse(){
 	RETURN_VAL=
 	local id=$1
@@ -74,7 +71,7 @@ function checkResponse(){
 	local date=$(echo "$resp" | grep -Po "Timestamp\":\"\K[\w:-]+")
 	local content=$(echo "$resp" | grep -Po "content\":\"\K.+(?=\")")
 	if [ -n "$date" ] ; then
-		RETURN_VAL="$(printf "%s | %s | %s\n" "$ph" "$date" "$content")"
+		RETURN_VAL="$(printf "%10s | %19s | %s\n" "$ph" "$date" "$content")"
 	fi	
 }
 
@@ -83,7 +80,6 @@ function checkResponse(){
 # showScreen - display top bar, menu, options
 #
 ##########
-
 function showScreen(){
 	local ROWS=$(stty size | cut -d' ' -f1)
 	local COLS=$(stty size | cut -d' ' -f2)
@@ -102,7 +98,6 @@ function showScreen(){
 # getInput - get user input for phone/message/message id
 #
 ###########
-
 function getInput(){
 	local type=$1
 	local text=$2		# initial text 
@@ -135,7 +130,6 @@ function getInput(){
 # optSendText - menu option for sending text message
 #
 ##########
-
 function optSendText(){
 	SCREEN_TITLE="Send Text"
 	local s1="1. Enter mobile"
@@ -183,9 +177,9 @@ function optSendText(){
 					read
 					continue
 				fi
-				echo "$res|$ph" >> "$MSG_ID_FILE"
-				echo "OUTBOUND|$ph|$(date +"%Y%m%d%H%M%S" | cut -c1-19)|$msg" >> "$MSG_ID_FILE"
-				SCREEN_PROMPT="${BOLD_GREEN}Message sent.${NTA} To check status/response, use message id:\n\n\t${res}\n\nIt has been added to file ${MSG_ID_FILE}. Press ENTER to return"
+				echo "$res|$ph" >> "$DATA_FILE"
+				echo "OUTBOUND|$ph|$(date +"%Y%m%d%H%M%S" | cut -c1-19)|$msg" >> "$DATA_FILE"
+				SCREEN_PROMPT="${BOLD_GREEN}Message sent.${NTA} To check status/response, use message id:\n\n\t${res}\n\nIt has been added to file ${DATA_FILE}. Press ENTER to return"
 				showScreen
 				read
 				break
@@ -202,7 +196,6 @@ function optSendText(){
 # optStatus - menu option for checking message delivery status
 #
 ###########
-
 function optStatus(){
 	local msg_id
 	local res		# delivery status result
@@ -240,7 +233,6 @@ function optStatus(){
 # optResponse - menu option for checking a reply to a message
 #
 ############
-
 function optResponse(){
 	local msg_id
 	local res	# reply result
@@ -276,10 +268,9 @@ function optResponse(){
 #############
 #
 # optStatuses - menu option to check delivery status for all message ids 
-# 					 stored in file MSG_ID_FILE
+# 					 stored in file DATA_FILE
 #
 #############
-
 function optStatuses(){
 	local msg_ids
 	local msg_id_count
@@ -288,12 +279,12 @@ function optStatuses(){
 	local i=0		# progress counter for getting statuses
 	local res_count=0		# number of results found
 	SCREEN_TITLE="Check All Statuses"
-	msg_ids=$(cat $MSG_ID_FILE | cut -d'|' -f1 | grep -v OUTBOUND)
-	msg_id_count=$(echo "$msg_ids" | wc -l)
+	msg_ids=$(cat "$DATA_FILE" | cut -d'|' -f1 | grep -v OUTBOUND)
+	msg_id_count=$(echo "$msg_ids" | sed '/^$/d' | wc -l)
 	if [ -t 0 ] ; then stty -echo -icanon time 0 min 0; fi		# set non-blocking user input
 	for id in $msg_ids ; do
 		key="$(cat 2>/dev/null)"	# read for any user input during data collection. redirect to /dev/null is to stop 'resource temporarily unavail' error in cygwin
-		SCREEN_PROMPT="Checking all statuses in file ${MSG_ID_FILE}\n\n${BOLD_YELLOW}Processing message ID $((++i)) / $msg_id_count${NTA}\n\nc) Cancel operation"
+		SCREEN_PROMPT="Checking all statuses in file ${DATA_FILE}\n\n${BOLD_YELLOW}Processing message ID $((++i)) / $msg_id_count${NTA}\n\nc) Cancel operation"
 		showScreen
 		checkStatus $id
 		res="$RETURN_VAL"
@@ -316,10 +307,9 @@ function optStatuses(){
 #############
 #
 # optResponses - menu option for checking replies to all message ids 
-# 					  in file MSG_ID_FILE
+# 					  in file DATA_FILE
 #
 #############
-
 function optResponses(){
 	local msg_ids
 	local msg_id_count
@@ -328,12 +318,12 @@ function optResponses(){
 	local i=0		# progress counter when getting all replies
 	local res_count=0		# number of replies found
 	SCREEN_TITLE="Check All Responses"
-	msg_ids=$(cat $MSG_ID_FILE | cut -d'|' -f1 | grep -v OUTBOUND)
-	msg_id_count=$(echo "$msg_ids" | wc -l)
+	msg_ids=$(cat "$DATA_FILE" | cut -d'|' -f1 | grep -v OUTBOUND)
+	msg_id_count=$(echo "$msg_ids" | sed '/^$/d' | wc -l)
 	if [ -t 0 ] ; then stty -echo -icanon time 0 min 0; fi
 	for id in $msg_ids ; do
 		key="$(cat 2>/dev/null)"
-		SCREEN_PROMPT="Checking all responses in file ${MSG_ID_FILE}\n\n${BOLD_YELLOW}Processing message ID $((++i)) / $msg_id_count${NTA}\n\nc) Cancel operation"
+		SCREEN_PROMPT="Checking all responses in file ${DATA_FILE}\n\n${BOLD_YELLOW}Processing message ID $((++i)) / $msg_id_count${NTA}\n\nc) Cancel operation"
 		showScreen
 		checkResponse $id	
 		res="$RETURN_VAL"
@@ -359,10 +349,9 @@ function optResponses(){
 #						  chronological order for a given mobile
 #
 #############
-
 function optMessageChain(){
 	local ph
-	local rows			# a row in MSG_ID_FILE
+	local rows			# a row in DATA_FILE
 	local row_count
 	local i				# progress counter when getting messages
 	local msg_id
@@ -386,8 +375,8 @@ function optMessageChain(){
 		ph="$RETURN_VAL"
 		[ -z "$ph" ] && continue;
 		[ "$ph" = b ] && break;
-		rows=$(cat "$MSG_ID_FILE" | grep -P "[^\|]+\|$ph") 
-		row_count=$(echo "$rows" | wc -l)
+		rows=$(cat "$DATA_FILE" | grep -P "[^\|]+\|$ph") 
+		row_count=$(echo "$rows" | sed '/^$/d' | wc -l)
 		if [ -z "$rows" ] ; then 
 			SCREEN_PROMPT="No messages for mobile: $ph\n\n1) Go back 2) Back to main menu"
 			while true ; do
@@ -417,7 +406,7 @@ function optMessageChain(){
 					date=$(echo "$resp" | cut -d'|' -f2 | sed s/\s//g)
 					date=$(date -d "$date" +"%Y%m%d%H%M%S")
 					msg=$(echo "$resp" | cut -d'|' -f3 | cut -c2-)
-					sed -r -iOLD "s/${msg_id}.*/&\|$date\|$msg/" "$MSG_ID_FILE"
+					sed -r -iOLD "s/${msg_id}.*/&\|$date\|$msg/" "$DATA_FILE"
 				fi
 				printf "I|%s|%s\n" "$date" "$msg" >> "$TMP_FILE"
 			fi
@@ -460,32 +449,52 @@ function optMessageChain(){
 	IFS=$OIFS
 }
 
-function clean_up() {
+############
+#
+# cleanUp - do some maintenence if script is force closed
+#
+############
+function cleanUp() {
 	printf "\033c\r" # clears screen. compatible with VT100 terminals
-	echo "Cleaning up before exit. Restore $MSG_ID_FILE with ${MSG_ID_FILE}OLD if needed" 
+	echo "Cleaning up before exit. Restore $DATA_FILE with ${DATA_FILE}OLD if needed" 
 	[ -e "$TMP_FILE" ] && rm "$TMP_FILE"
 	stty $SAVE_TERM
 	exit 1
 }
 
-if [ $# -ne 1 -a $# -ne 3 ] ; then
-	echo -e "Usage: $0 {api key file} [mobile "message"]\n\tmobile - eg.0412345678\n\tmessage - Message must be wrapped in double quotes.  If longer than 160 characters, message is truncated\nIf you don't have an app key/secret, sign up for a T.Dev account at https://dev.telstra.com/ and create a new app using the SMS API.  Put the app key on line 1 and app secret on line 2 of the api key file"
+if [ $# -ne 2 -a $# -ne 4 ] ; then
+	echo -e "Usage: $0 {api key file} {data file} [mobile "message"]
+
+\tmobile - eg.0412345678
+\tmessage - Message must be wrapped in double quotes.  If longer than 160 characters, message is truncated
+\tdata file - stores message data. Can read from existing file or create a new one if it doesn't exist.
+\tapi key file - If you don't have an app key/secret, sign up for a T.Dev account at https://dev.telstra.com/ and create a new app using the SMS API.  Put the app key on line 1 and app secret on line 2 of the api key file"
 	exit 1
 fi
-if [ -e $1 ] ; then # check for valid key and generate auth token
-	APP_KEY=$(cat $1 | head -n1)
-	APP_SECRET=$(cat $1 | tail -n1)
-	TOKEN=$(curl -s "https://api.telstra.com/v1/oauth/token?client_id=$APP_KEY&client_secret=$APP_SECRET&grant_type=client_credentials&scope=SMS" | grep -Po "access_token\": \"\K\w+")
+
+# check for valid key and generate auth token
+[ -e "$1" ] || { echo "Key file $1 not found"; exit 1; }
+[ -r "$1" ] || { echo "Key file $1 unreadable. Check permissions"; exit 1; } 
+APP_KEY=$(cat "$1" | head -n1)
+APP_SECRET=$(cat "$1" | tail -n1)
+TOKEN=$(curl -s "https://api.telstra.com/v1/oauth/token?client_id=$APP_KEY&client_secret=$APP_SECRET&grant_type=client_credentials&scope=SMS" | grep -Po "access_token\": \"\K\w+")
+
+# check data file
+if [ -e "$2" ] ; then
+	[ -w "$2" ] || { echo "Data file $2 not writable. Check permissions"; exit 1; }
+	[ -r "$2" ] || { echo "Data file $2 not readable. Check permissions"; exit 1; }
 else
-	echo "api key file not found."
-	exit 1
+	touch "$2"
 fi
-if [ $# -eq 3 ] ; then	# send text message from command line
-	sendText "$2" "${3:0:160}"
+DATA_FILE="$2"			
+
+# send text message from command line
+if [ $# -eq 4 ] ; then		
+	sendText "$3" "${4:0:160}"
 	if [ $? -eq 0 ] ; then
-		echo -e "Message sent. To check status/response, use message id: ${RETURN_VAL}\nIt has been added to file ${MSG_ID_FILE}."
-		echo "$RETURN_VAL|$2" >> "$MSG_ID_FILE"
-		echo "OUTBOUND|$2|$(date +"%Y%m%d%H%M%S" | cut -c1-19)|$3" >> "$MSG_ID_FILE"
+		echo -e "Message sent. To check status/response, use message id: ${RETURN_VAL}\nIt has been added to file ${DATA_FILE}."
+		echo "$RETURN_VAL|$2" >> "$DATA_FILE"
+		echo "OUTBOUND|$3|$(date +"%Y%m%d%H%M%S" | cut -c1-19)|$4" >> "$DATA_FILE"
 		exit 0
 	else
 		echo "Message not sent. Server error $RETURN_VAL"
@@ -494,7 +503,6 @@ if [ $# -eq 3 ] ; then	# send text message from command line
 fi
 
 trap clean_up SIGINT SIGTERM
-
 while true ; do
 	SCREEN_TITLE="Main Menu"
 	SCREEN_PROMPT="Send up to 100 SMS free per day to any Australian mobile
