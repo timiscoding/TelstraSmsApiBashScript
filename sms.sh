@@ -15,7 +15,6 @@
 #		SCREEN_PROMPT	text shown to user. eg. menus and options
 # 		RETURN_VAL	return value from function
 #
-TMP_FILE="temp.sms.sh.$$.$RANDOM"	# tmp file to store results for optMessageChain
 NTA='\033[0m' 				# No text attributes
 BOLD_RED='\033[31;1;40m'  
 INV='\033[47;30m' 			# dark grey background, white text
@@ -29,7 +28,7 @@ SAVE_TERM="$(stty -g)"			# save term settings
 # sendText - make Telstra API call to send a text message
 # 
 ############
-function sendText(){
+sendText() {
 	checkToken
 	local phone=$1
 	local msg=$(echo "$2" | sed 's/"/\\\"/g')		# double quotes need to be escaped for JSON 
@@ -56,7 +55,7 @@ function sendText(){
 # checkStatus - make Telstra API call to get delivery status for a message
 #
 ############
-function checkStatus(){
+checkStatus() {
 	checkToken
 	RETURN_VAL=
 	local id=$1
@@ -76,7 +75,7 @@ function checkStatus(){
 # checkResponse - make Telstra API call to get reply for a message
 #
 ###########
-function checkResponse(){
+checkResponse() {
 	checkToken
 	RETURN_VAL=
 	local id=$1
@@ -95,15 +94,15 @@ function checkResponse(){
 # showScreen - display top bar, menu, options
 #
 ##########
-function showScreen(){
+showScreen() {
 	local ROWS=$(stty size | cut -d' ' -f1)
 	local COLS=$(stty size | cut -d' ' -f2)
 	local name="Telstra Sms Api Bash script"
 	printf "\033c\r" # clears screen. compatible with VT100 terminals
 	printf "${INV}%-*s%s\n${NTA}" $(($COLS - ${#name})) "$SCREEN_TITLE" "$name" # top bar
 	printf "%0.s=" $(seq 1 $COLS) # print upper border
-	echo -e '\n'
-	echo -e "$SCREEN_PROMPT" | sed 's/^/ /'
+	printf '\n\n'
+	printf "$SCREEN_PROMPT\n" | sed 's/^/ /'
 	echo
 	printf "%0.s=" $(seq 1 $COLS) # print upper border
 }
@@ -113,7 +112,7 @@ function showScreen(){
 # getInput - get user input for phone/message/message id
 #
 ###########
-function getInput(){
+getInput() {
 	local type=$1
 	local text=$2		# initial text 
 	local prompt=$3	# text to show before waiting for input
@@ -124,11 +123,11 @@ function getInput(){
 		MSG)
 			while true ; do
 				echo "$prompt"
-				read -i "$text" -e RETURN_VAL
+				read -r -i "$text" -e RETURN_VAL
 				if [ ${#RETURN_VAL} -gt 160 ] ; then
 					text="$RETURN_VAL"
 					showScreen
-					echo -e "${BOLD_RED}Message has ${#RETURN_VAL} characters${NTA}"
+					printf "${BOLD_RED}Message has ${#RETURN_VAL} characters${NTA}\n"
 				else
 					break 
 				fi
@@ -145,7 +144,7 @@ function getInput(){
 # optSendText - menu option for sending text message
 #
 ##########
-function optSendText(){
+optSendText() {
 	SCREEN_TITLE="Send Text"
 	local s1="1. Enter mobile"
 	local s2="2. Enter message"
@@ -193,7 +192,7 @@ function optSendText(){
 					continue
 				fi
 				echo "$res|$ph" >> "$DATA_FILE"
-				echo "OUTBOUND|$ph|$(date +"%Y%m%d%H%M%S" | cut -c1-19)|$msg" >> "$DATA_FILE"
+				echo "OUTBOUND|$ph|$(date +"%s" | cut -c1-19)|$msg" >> "$DATA_FILE"
 				SCREEN_PROMPT="${BOLD_GREEN}Message sent.${NTA} To check status/response, use message id:\n\n\t${res}\n\nIt has been added to file ${DATA_FILE}. Press ENTER to return"
 				showScreen
 				read
@@ -211,7 +210,7 @@ function optSendText(){
 # optStatus - menu option for checking message delivery status
 #
 ###########
-function optStatus(){
+optStatus() {
 	local msg_id
 	local res		# delivery status result
 	local opt		# key pressed option
@@ -248,7 +247,7 @@ function optStatus(){
 # optResponse - menu option for checking a reply to a message
 #
 ############
-function optResponse(){
+optResponse() {
 	local msg_id
 	local res	# result
 	local msg
@@ -270,12 +269,13 @@ function optResponse(){
 			checkResponse "$msg_id"
 			res="$RETURN_VAL"
 			date=$(echo "$res" | cut -d'|' -f2 | sed s/\s//g)
-			date=$(date -d "$date" +"%Y%m%d%H%M%S")
+			date=$(date -d $date +%s)
 			msg=$(echo "$res" | cut -d'|' -f3 | cut -c2-)
 			sed -r -iOLD "s/${msg_id}.*/&\|$date\|$msg/" "$DATA_FILE"
 		else # reply in file
 			ph=$(echo "$res" | cut -d'|' -f2)
-			date=$(echo "$res" | cut -d'|' -f3 | sed -r "s/(.{4})(.{2})(.{2})(.{2})(.{2})(.{2})/\1-\2-\3 \4:\5:\6/") # convert time field to human readable format
+			date=$(echo "$res" | cut -d'|' -f3)
+			date=$(date -d @$date +%Y-%m-%dT%H:%M:%S) # convert time field to human readable format
 			res=$(printf "%10s | %19s | %s" "$ph" "$date" "$msg")
 		fi
 		if [ -n "$res" ] ; then
@@ -300,7 +300,7 @@ function optResponse(){
 # optStatuses - menu option to check delivery status for all message ids stored in file DATA_FILE
 #
 #############
-function optStatuses(){
+optStatuses() {
 	local msg_ids
 	local msg_id_count
 	local res		# status for a single message
@@ -314,15 +314,22 @@ function optStatuses(){
 	if [ -t 0 ] ; then stty -echo -icanon time 0 min 0; fi		# set non-blocking user input
 	for id in $msg_ids ; do
 		key="$(cat 2>/dev/null)"	# read user input. redirect to /dev/null is to stop 'resource temporarily unavail' error in cygwin
-		if [[ "$key" =~ c ]] ; then		# user wants to cancel operation
+		if echo "$key" | grep c ; then		# user wants to cancel operation
 			if [ -t 0 ] ; then stty $SAVE_TERM; fi
+			SCREEN_PROMPT="Checking all statuses in file ${DATA_FILE}\n\nProcessed message ID $i / $msg_id_count\n\n$(printf "%-10s | %-19s | %-19s | %s\n" "Mobile" "Received" "Sent" "Status")\n$all_res\n\n${BOLD_RED}Operation cancelled.${NTA} Press ENTER to go back to main menu"
+			showScreen
+			read
 			return
 		fi
-		SCREEN_PROMPT="Checking all statuses in file ${DATA_FILE}\n\n${BOLD_YELLOW}Processing message ID $((++i)) / $msg_id_count${NTA}\n\nc) Cancel operation"
-		showScreen
+		i=$((i + 1))
 		checkStatus $id
 		res="$RETURN_VAL"
-		[ -n "$res" ] && { res_count=$((res_count + 1)); all_res="$all_res$res\n"; }
+		if [ -n "$res" ] ; then
+			res_count=$((res_count + 1))
+			all_res="$all_res$res\n"
+			SCREEN_PROMPT="Checking all statuses in file ${DATA_FILE}\n\n${BOLD_YELLOW}Processed message ID $i / $msg_id_count\t\tc) Cancel operation${NTA}\n\n$(printf "%-10s | %-19s | %-19s | %s\n" "Mobile" "Received" "Sent" "Status")\n$all_res"
+			showScreen
+		fi
 	done 
 	if [ -t 0 ] ; then stty $SAVE_TERM; fi
 	if [ $res_count -gt 0 ] ; then
@@ -339,7 +346,7 @@ function optStatuses(){
 # optResponses - menu option for checking replies to all message ids in file DATA_FILE
 #
 #############
-function optResponses(){
+optResponses() {
 	local msg_ids
 	local msg_id_count
 	local res		# reply for a single message
@@ -353,12 +360,14 @@ function optResponses(){
 	if [ -t 0 ] ; then stty -echo -icanon time 0 min 0; fi
 	for id in $msg_ids ; do
 		key="$(cat 2>/dev/null)"
-		if [[ "$key" =~ c ]] ; then
+		if echo "$key" | grep c ; then
 			if [ -t 0 ] ; then stty $SAVE_TERM; fi
+			SCREEN_PROMPT="Processed $i / $msg_id_count message IDs:\n\n$(printf "%-10s | %-19s | %-s\n" "Mobile" "Date" "Message")\n$all_res\n\n${BOLD_RED}Operation cancelled. ${NTA}Press ENTER to return to main menu"
+			showScreen
+			read
 			return
 		fi
-		SCREEN_PROMPT="Checking all responses in file ${DATA_FILE}\n\n${BOLD_YELLOW}Processing message ID $((++i)) / $msg_id_count${NTA}\n\nc) Cancel operation"
-		showScreen
+		i=$((i + 1))
 		res=$(cat "$DATA_FILE" | grep "$id")
 		msg=$(echo "$res" | cut -d'|' -f4) # find reply from file
 		if [ -z "$msg" ] ; then # reply not in file
@@ -366,15 +375,21 @@ function optResponses(){
 			res="$RETURN_VAL"
 			[ -z "$res" ] && continue
 			date=$(echo "$res" | cut -d'|' -f2 | sed s/\s//g)
-			date=$(date -d "$date" +"%Y%m%d%H%M%S")
+			date=$(date -d "$date" +"%s")
 			msg=$(echo "$res" | cut -d'|' -f3 | cut -c2-)
 			sed -r -iOLD "s/${id}.*/&\|$date\|$msg/" "$DATA_FILE"
 		else # reply in file
 			ph=$(echo "$res" | cut -d'|' -f2)
-			date=$(echo "$res" | cut -d'|' -f3 | sed -r "s/(.{4})(.{2})(.{2})(.{2})(.{2})(.{2})/\1-\2-\3 \4:\5:\6/") # convert time field to human readable format
+			date=$(echo "$res" | cut -d'|' -f3)
+			date=$(date -d @$date +%Y-%m-%dT%H:%M:%S) # convert time field to human readable format
 			res=$(printf "%10s | %19s | %s" "$ph" "$date" "$msg")
 		fi
-		[ -n "$res" ] && { res_count=$((res_count + 1)); all_res="$all_res$res\n"; }
+		if [ -n "$res" ] ; then
+			res_count=$((res_count + 1))
+			all_res="$all_res$res\n"
+			SCREEN_PROMPT="${BOLD_YELLOW}Processed messaged ID $i / $msg_id_count\t\t c) Cancel operation${NTA}\n\n$(printf "%-10s | %-19s | %-s\n" "Mobile" "Date" "Message")\n$all_res"
+			showScreen
+		fi
 	done
 	if [ -t 0 ] ; then stty $SAVE_TERM; fi
 	if [ $res_count -gt 0 ] ; then
@@ -391,7 +406,7 @@ function optResponses(){
 # optMessageChain - menu option for returning all inbound/outbound messages in chronological order for a given mobile
 #
 #############
-function optMessageChain(){
+optMessageChain() {
 	local ph
 	local rows			# a row in DATA_FILE
 	local row_count
@@ -405,9 +420,11 @@ function optMessageChain(){
 	local res			
 	local all_res		
 	local key			# keypress for cancelling operation
+	local unsorted		
 	OIFS=$IFS
 	IFS=$'\n'
 	while true ; do
+		unsorted=
 		all_res=
 		i=0
 		SCREEN_TITLE="Check Message Chain"
@@ -433,7 +450,7 @@ function optMessageChain(){
 		if [ -t 0 ] ; then stty -echo -icanon time 0 min 0; fi
 		for line in $rows ; do
 			key="$(cat 2>/dev/null)"
-			if [[ "$key" =~ c ]] ; then
+			if echo "$key" | grep c ; then
 				if [ -t 0 ] ; then stty $SAVE_TERM; fi
 				IFS=$OIFS
 				break 2
@@ -444,38 +461,44 @@ function optMessageChain(){
 			date=$(echo "$line" | cut -d'|' -f3)
 			msg=$(echo "$line" | cut -d'|' -f4)
 			if [ "$msg_id" = "OUTBOUND" ] ; then
-				printf "O|%s|%s\n" "$date" "$msg" >> "$TMP_FILE"
+				unsorted="$unsorted$(printf "O|%s|%s\n" "$date" "$msg")\n"
 			else # inbound. a message id 
 				if [ -z "$msg" ] ; then
 					checkResponse "$msg_id"
 					resp="$RETURN_VAL"
 					[ -z "$resp" ] && continue
 					date=$(echo "$resp" | cut -d'|' -f2 | sed s/\s//g)
-					date=$(date -d "$date" +"%Y%m%d%H%M%S")
+					date=$(date -d "$date" +"%s")
 					msg=$(echo "$resp" | cut -d'|' -f3 | cut -c2-)
 					sed -r -iOLD "s/${msg_id}.*/&\|$date\|$msg/" "$DATA_FILE"
 				fi
-				printf "I|%s|%s\n" "$date" "$msg" >> "$TMP_FILE"
+				unsorted="$unsorted\n$(printf "I|%s|%s\n" "$date" "$msg")\n"
 			fi
 		done
-		sorted=$(cat "$TMP_FILE" | sort -t'|' -n -k2) # sort messages by time in ascending order
+		sorted=$(printf "$unsorted" | sort -t'|' -n -k2) # sort messages by time in ascending order
 		[ -e "$TMP_FILE" ] && rm "$TMP_FILE"
 		i=0
 		row_count=$(echo "$sorted" | wc -l)
 		for line in $sorted ; do
 			key="$(cat 2>/dev/null)"
-			if [[ "$key" =~ c ]] ; then
+			if echo "$key" | grep c ; then
 				if [ -t 0 ] ; then stty $SAVE_TERM; fi
 				IFS=$OIFS
+				SCREEN_PROMPT="Message chain for mobile: $ph\n\nProcessed row $i / $row_count\n\n$(printf "%-11s | %-19s | %-s\n" "In/Outbound" "Date" "Message")\n$all_res\n${BOLD_RED}Operation cancelled.${NTA} Press ENTER to go to main menu"
+				showScreen
+				read
 				break 2
 			fi
-			SCREEN_PROMPT="Generating results...\n\n${BOLD_YELLOW}Processing row $((++i)) / $row_count${NTA}\n\nc) Cancel operation"
-			showScreen
-			date=$(echo "$line" | cut -d'|' -f2 | sed -r "s/(.{4})(.{2})(.{2})(.{2})(.{2})(.{2})/\1-\2-\3 \4:\5:\6/") # convert time field to human readable format
+			i=$((i + 1))
+#			SCREEN_PROMPT="Generating results...\n\n${BOLD_YELLOW}Processing row $((++i)) / $row_count${NTA}\n\nc) Cancel operation"
+			date=$(echo "$line" | cut -d'|' -f2)
+			date=$(date -d @$date +%Y-%m-%dT%H:%M:%S) # convert time field to human readable format
 			dir=$(echo $line | cut -c1)
 			msg=$(echo $line | cut -d'|' -f3)
 			res=$(printf "%-11s | %s | %s\n" "$dir" "$date" "$msg")
 			all_res="$all_res$res\n"
+			SCREEN_PROMPT="Message chain for mobile: $ph\n\n${BOLD_YELLOW}Processed row $i / $row_count\t\tc) Cancel operation${NTA}\n\n$(printf "%-11s | %-19s | %-s\n" "In/Outbound" "Date" "Message")\n$all_res"
+			showScreen
 		done
 		if [ -t 0 ] ; then stty $SAVE_TERM; fi
 		SCREEN_PROMPT="Message chain for mobile: $ph\n\n$(printf "%-11s | %-19s | %-s\n" "In/Outbound" "Date" "Message")\n$all_res\n1) Check another mobile 2) Back to main menu"
@@ -496,7 +519,7 @@ function optMessageChain(){
 # cleanUp - do some maintenence if script is force closed
 #
 ############
-function cleanUp() {
+cleanUp() {
 	printf "\033c\r" # clears screen. compatible with VT100 terminals
 	echo "Cleaning up before exit. Restore $DATA_FILE with ${DATA_FILE}OLD if needed" 
 	[ -e "$TMP_FILE" ] && rm "$TMP_FILE"
@@ -509,7 +532,7 @@ function cleanUp() {
 # checkToken - check whether authentication token is expired  
 #
 ###########
-function checkToken(){
+checkToken() {
 	if [ $(($(date +%s) - $TOKEN_EXPIRE)) -gt 0 ] ; then # token expired
 		TOKEN=$(curl --connect-timeout 5 -m 5 -s "https://api.telstra.com/v1/oauth/token?client_id=$APP_KEY&client_secret=$APP_SECRET&grant_type=client_credentials&scope=SMS")
 		if [ $? -ne 0 ] ; then
@@ -527,12 +550,12 @@ function checkToken(){
 }
 
 if [ $# -ne 2 -a $# -ne 4 ] ; then
-	echo -e "Usage: $0 {api key file} {data file} [mobile "message"]
+	printf "Usage: $0 {api key file} {data file} [mobile "message"]
 
 \tmobile - eg.0412345678
 \tmessage - Message must be wrapped in double quotes.  If longer than 160 characters, message is truncated
 \tdata file - stores message data. Can read from existing file or create a new one if it doesn't exist.
-\tapi key file - If you don't have an app key/secret, sign up for a T.Dev account at https://dev.telstra.com/ and create a new app using the SMS API.  Put the app key on line 1 and app secret on line 2 of the api key file"
+\tapi key file - If you don't have an app key/secret, sign up for a T.Dev account at https://dev.telstra.com/ and create a new app using the SMS API.  Put the app key on line 1 and app secret on line 2 of the api key file\n"
 	exit 1
 fi
 
@@ -555,7 +578,7 @@ if [ -z "$TOKEN" ] ; then # no token found in key file
 		exit
 	fi
 	TOKEN_INTERVAL=$(($(echo "$TOKEN" | grep -Po "expires_in\":\s*\"\K\d+") - 60))
-	TOKEN=$(echo $TOKEN | grep -Po "access_token\": \"\K\w+")
+	TOKEN=$(echo "$TOKEN" | grep -Po "access_token\": \"\K\w+")
 	echo "$TOKEN" >> "$KEY_FILE"
 	TOKEN_EXPIRE=$(($(date +%s) + $TOKEN_INTERVAL))
 	echo "$TOKEN_EXPIRE" >> "$KEY_FILE"
@@ -573,7 +596,7 @@ DATA_FILE="$2"
 if [ $# -eq 4 ] ; then		
 	sendText "$3" "${4:0:160}"
 	if [ $? -eq 0 ] ; then
-		echo -e "Message sent. To check status/response, use message id: ${RETURN_VAL}\nIt has been added to file ${DATA_FILE}."
+		printf "Message sent. To check status/response, use message id: ${RETURN_VAL}\nIt has been added to file ${DATA_FILE}.\n"
 		echo "$RETURN_VAL|$3" >> "$DATA_FILE"
 		echo "OUTBOUND|$3|$(date +"%Y%m%d%H%M%S" | cut -c1-19)|$4" >> "$DATA_FILE"
 		exit 0
