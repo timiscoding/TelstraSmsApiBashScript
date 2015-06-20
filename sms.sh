@@ -34,10 +34,11 @@ function sendText(){
 	local phone=$1
 	local msg=$(echo "$2" | sed 's/"/\\\"/g')		# double quotes need to be escaped for JSON 
 	local resp=$(
-		curl -s -H "Content-Type: application/json" \
+		curl --connect-timeout 5 -m 5 -s -H "Content-Type: application/json" \
 		-H "Authorization: Bearer $TOKEN" \
 		-d "{\"to\":\"$phone\", \"body\":\"$msg\"}" \
 		"https://api.telstra.com/v1/sms/messages") 
+	[ $? -ne 0 ] && { RETURN_VAL="Server took too long to respond"; return 1; }
 	local server_status=$(echo "$resp" | grep -Po "status\":\s\K\d+")
 	local server_msg=$(echo "$resp" | grep -Po "message\":\s\K[\w\s]+")
 	local msg_id=$(echo "$resp" | grep -Po "messageId\":\"\K\w+")
@@ -59,7 +60,8 @@ function checkStatus(){
 	checkToken
 	RETURN_VAL=
 	local id=$1
-	local resp=$(curl -sH "Authorization: Bearer $TOKEN" "https://api.telstra.com/v1/sms/messages/$id")
+	local resp=$(curl --connect-timeout 5 -m 5 -sH "Authorization: Bearer $TOKEN" "https://api.telstra.com/v1/sms/messages/$id")
+	[ $? -ne 0 ] && { RETURN_VAL="Server took too long to respond"; return; }
 	local ph=$(echo "$resp" | grep -Po "to\":\"\K\d+" | sed s/^61/0/)
 	local received=$(echo "$resp" | grep -Po "receivedTimestamp\":\"\K[\w:-]+")
 	local sent=$(echo "$resp" | grep -Po "sentTimestamp\":\"\K[\w:-]+")
@@ -78,7 +80,8 @@ function checkResponse(){
 	checkToken
 	RETURN_VAL=
 	local id=$1
-	local resp=$(curl -sH "Authorization: Bearer $TOKEN" "https://api.telstra.com/v1/sms/messages/$id/response")
+	local resp=$(curl --connect-timeout 5 -m 5 -sH "Authorization: Bearer $TOKEN" "https://api.telstra.com/v1/sms/messages/$id/response")
+	[ $? -ne 0 ] && { RETURN_VAL="Server took too long to respond"; return; }
 	local ph=$(echo "$resp" | grep -Po "from\":\"\K\d+" | sed s/^61/0/)
 	local date=$(echo "$resp" | grep -Po "Timestamp\":\"\K[\w:-]+")
 	local content=$(echo "$resp" | grep -Po "content\":\"\K.+(?=\")")
@@ -294,8 +297,7 @@ function optResponse(){
 
 #############
 #
-# optStatuses - menu option to check delivery status for all message ids 
-# 					 stored in file DATA_FILE
+# optStatuses - menu option to check delivery status for all message ids stored in file DATA_FILE
 #
 #############
 function optStatuses(){
@@ -305,21 +307,22 @@ function optStatuses(){
 	local all_res	# statuses for all messages
 	local i=0		# progress counter for getting statuses
 	local res_count=0		# number of results found
+	local key				# keypress
 	SCREEN_TITLE="Check All Statuses"
 	msg_ids=$(cat "$DATA_FILE" | cut -d'|' -f1 | grep -v OUTBOUND)
 	msg_id_count=$(echo "$msg_ids" | sed '/^$/d' | wc -l)
 	if [ -t 0 ] ; then stty -echo -icanon time 0 min 0; fi		# set non-blocking user input
 	for id in $msg_ids ; do
-		key="$(cat 2>/dev/null)"	# read for any user input during data collection. redirect to /dev/null is to stop 'resource temporarily unavail' error in cygwin
+		key="$(cat 2>/dev/null)"	# read user input. redirect to /dev/null is to stop 'resource temporarily unavail' error in cygwin
+		if [[ "$key" =~ c ]] ; then		# user wants to cancel operation
+			if [ -t 0 ] ; then stty $SAVE_TERM; fi
+			return
+		fi
 		SCREEN_PROMPT="Checking all statuses in file ${DATA_FILE}\n\n${BOLD_YELLOW}Processing message ID $((++i)) / $msg_id_count${NTA}\n\nc) Cancel operation"
 		showScreen
 		checkStatus $id
 		res="$RETURN_VAL"
 		[ -n "$res" ] && { res_count=$((res_count + 1)); all_res="$all_res$res\n"; }
-		if [[ "$key" =~ c ]] ; then		# user wants to cancel operation
-			if [ -t 0 ] ; then stty $SAVE_TERM; fi
-			return
-		fi
 	done 
 	if [ -t 0 ] ; then stty $SAVE_TERM; fi
 	if [ $res_count -gt 0 ] ; then
@@ -333,8 +336,7 @@ function optStatuses(){
 
 #############
 #
-# optResponses - menu option for checking replies to all message ids 
-# 					  in file DATA_FILE
+# optResponses - menu option for checking replies to all message ids in file DATA_FILE
 #
 #############
 function optResponses(){
@@ -344,12 +346,17 @@ function optResponses(){
 	local all_res	# replies for all messages
 	local i=0		# progress counter when getting all replies
 	local res_count=0		# number of replies found
+	local key				# keypress
 	SCREEN_TITLE="Check All Responses"
 	msg_ids=$(cat "$DATA_FILE" | cut -d'|' -f1 | grep -v OUTBOUND)
 	msg_id_count=$(echo "$msg_ids" | sed '/^$/d' | wc -l)
 	if [ -t 0 ] ; then stty -echo -icanon time 0 min 0; fi
 	for id in $msg_ids ; do
 		key="$(cat 2>/dev/null)"
+		if [[ "$key" =~ c ]] ; then
+			if [ -t 0 ] ; then stty $SAVE_TERM; fi
+			return
+		fi
 		SCREEN_PROMPT="Checking all responses in file ${DATA_FILE}\n\n${BOLD_YELLOW}Processing message ID $((++i)) / $msg_id_count${NTA}\n\nc) Cancel operation"
 		showScreen
 		res=$(cat "$DATA_FILE" | grep "$id")
@@ -368,10 +375,6 @@ function optResponses(){
 			res=$(printf "%10s | %19s | %s" "$ph" "$date" "$msg")
 		fi
 		[ -n "$res" ] && { res_count=$((res_count + 1)); all_res="$all_res$res\n"; }
-		if [[ "$key" =~ c ]] ; then
-			if [ -t 0 ] ; then stty $SAVE_TERM; fi
-			return
-		fi
 	done
 	if [ -t 0 ] ; then stty $SAVE_TERM; fi
 	if [ $res_count -gt 0 ] ; then
@@ -385,8 +388,7 @@ function optResponses(){
 
 #############
 #
-# optMessageChain - menu option for returning all inbound/outbound messages in 
-#						  chronological order for a given mobile
+# optMessageChain - menu option for returning all inbound/outbound messages in chronological order for a given mobile
 #
 #############
 function optMessageChain(){
@@ -431,6 +433,11 @@ function optMessageChain(){
 		if [ -t 0 ] ; then stty -echo -icanon time 0 min 0; fi
 		for line in $rows ; do
 			key="$(cat 2>/dev/null)"
+			if [[ "$key" =~ c ]] ; then
+				if [ -t 0 ] ; then stty $SAVE_TERM; fi
+				IFS=$OIFS
+				break 2
+			fi
 			SCREEN_PROMPT="Retrieving message chain for mobile: $ph\n\n${BOLD_YELLOW}Processing row $((++i)) / $row_count${NTA}\n\nc) Cancel operation"
 			showScreen
 			msg_id=$(echo "$line" | cut -d'|' -f1)
@@ -450,11 +457,6 @@ function optMessageChain(){
 				fi
 				printf "I|%s|%s\n" "$date" "$msg" >> "$TMP_FILE"
 			fi
-			if [[ "$key" =~ c ]] ; then
-				if [ -t 0 ] ; then stty $SAVE_TERM; fi
-				IFS=$OIFS
-				break 2
-			fi
 		done
 		sorted=$(cat "$TMP_FILE" | sort -t'|' -n -k2) # sort messages by time in ascending order
 		[ -e "$TMP_FILE" ] && rm "$TMP_FILE"
@@ -462,6 +464,11 @@ function optMessageChain(){
 		row_count=$(echo "$sorted" | wc -l)
 		for line in $sorted ; do
 			key="$(cat 2>/dev/null)"
+			if [[ "$key" =~ c ]] ; then
+				if [ -t 0 ] ; then stty $SAVE_TERM; fi
+				IFS=$OIFS
+				break 2
+			fi
 			SCREEN_PROMPT="Generating results...\n\n${BOLD_YELLOW}Processing row $((++i)) / $row_count${NTA}\n\nc) Cancel operation"
 			showScreen
 			date=$(echo "$line" | cut -d'|' -f2 | sed -r "s/(.{4})(.{2})(.{2})(.{2})(.{2})(.{2})/\1-\2-\3 \4:\5:\6/") # convert time field to human readable format
@@ -469,11 +476,6 @@ function optMessageChain(){
 			msg=$(echo $line | cut -d'|' -f3)
 			res=$(printf "%-11s | %s | %s\n" "$dir" "$date" "$msg")
 			all_res="$all_res$res\n"
-			if [[ "$key" =~ c ]] ; then
-				if [ -t 0 ] ; then stty $SAVE_TERM; fi
-				IFS=$OIFS
-				break 2
-			fi
 		done
 		if [ -t 0 ] ; then stty $SAVE_TERM; fi
 		SCREEN_PROMPT="Message chain for mobile: $ph\n\n$(printf "%-11s | %-19s | %-s\n" "In/Outbound" "Date" "Message")\n$all_res\n1) Check another mobile 2) Back to main menu"
@@ -509,7 +511,13 @@ function cleanUp() {
 ###########
 function checkToken(){
 	if [ $(($(date +%s) - $TOKEN_EXPIRE)) -gt 0 ] ; then # token expired
-		TOKEN=$(curl -s "https://api.telstra.com/v1/oauth/token?client_id=$APP_KEY&client_secret=$APP_SECRET&grant_type=client_credentials&scope=SMS")
+		TOKEN=$(curl --connect-timeout 5 -m 5 -s "https://api.telstra.com/v1/oauth/token?client_id=$APP_KEY&client_secret=$APP_SECRET&grant_type=client_credentials&scope=SMS")
+		if [ $? -ne 0 ] ; then
+			SCREEN_PROMPT="Server took too long to respond. Could not update auth token. Press ENTER to continue"
+			showScreen
+			read
+			return
+		fi
 		TOKEN_INTERVAL=$(($(echo "$TOKEN" | grep -Po "expires_in\":\s*\"\K\d+") - 60)) 		
 		TOKEN=$(echo $TOKEN | grep -Po "access_token\": \"\K\w+")
 		TOKEN_EXPIRE=$(($(date +%s) + $TOKEN_INTERVAL))
@@ -528,7 +536,7 @@ if [ $# -ne 2 -a $# -ne 4 ] ; then
 	exit 1
 fi
 
-# check for key and generate auth token
+# check key file exists and permissions
 [ -e "$1" ] || { echo "Key file $1 not found"; exit 1; }
 [ -r "$1" -a -w "$1" ] || { echo "Key file $1 must be readable and writable. Check permissions"; exit 1; } 
 
@@ -538,8 +546,14 @@ APP_SECRET=$(sed -n 2p "$KEY_FILE")
 TOKEN=$(sed -n 3p "$KEY_FILE")
 TOKEN_EXPIRE=$(sed -n 4p "$KEY_FILE")
 
-if [ -z "$TOKEN" ] ; then
-	TOKEN=$(curl -s "https://api.telstra.com/v1/oauth/token?client_id=$APP_KEY&client_secret=$APP_SECRET&grant_type=client_credentials&scope=SMS")
+if [ -z "$TOKEN" ] ; then # no token found in key file
+	TOKEN=$(curl --connect-timeout 5 -m 5 -s "https://api.telstra.com/v1/oauth/token?client_id=$APP_KEY&client_secret=$APP_SECRET&grant_type=client_credentials&scope=SMS")
+	if [ $? -ne 0 ] ; then
+		SCREEN_PROMPT="Server took too long to respond. Could not update auth token. Script will now quit. Press ENTER to continue."
+		showScreen
+		read
+		exit
+	fi
 	TOKEN_INTERVAL=$(($(echo "$TOKEN" | grep -Po "expires_in\":\s*\"\K\d+") - 60))
 	TOKEN=$(echo $TOKEN | grep -Po "access_token\": \"\K\w+")
 	echo "$TOKEN" >> "$KEY_FILE"
@@ -547,7 +561,7 @@ if [ -z "$TOKEN" ] ; then
 	echo "$TOKEN_EXPIRE" >> "$KEY_FILE"
 fi
 
-# check data file
+# check data file exists and permissions
 if [ -e "$2" ] ; then
 	[ -w "$2" -a -r "$2" ] || { echo "Data file $2 be readable and writable. Check permissions"; exit 1; }
 else
