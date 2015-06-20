@@ -493,7 +493,7 @@ if [ $# -eq 4 ] ; then
 	sendText "$3" "${4:0:160}"
 	if [ $? -eq 0 ] ; then
 		echo -e "Message sent. To check status/response, use message id: ${RETURN_VAL}\nIt has been added to file ${DATA_FILE}."
-		echo "$RETURN_VAL|$2" >> "$DATA_FILE"
+		echo "$RETURN_VAL|$3" >> "$DATA_FILE"
 		echo "OUTBOUND|$3|$(date +"%Y%m%d%H%M%S" | cut -c1-19)|$4" >> "$DATA_FILE"
 		exit 0
 	else
@@ -506,6 +506,7 @@ trap clean_up SIGINT SIGTERM
 while true ; do
 	SCREEN_TITLE="Main Menu"
 	SCREEN_PROMPT="Send up to 100 SMS free per day to any Australian mobile
+Data file: [$DATA_FILE]
 \n1) Send text
 2) Check status
 3) Check response
