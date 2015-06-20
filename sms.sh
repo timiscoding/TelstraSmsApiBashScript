@@ -1,19 +1,28 @@
+#!/bin/bash
+#
 # TelstraSmsApiBashScript
 # github.com/timiscoding
-
-#!/bin/bash
-DATA_FILE="msg_ids" # store message id and outbound sms data
+#
+# Global variables
+# 		KEY_FILE	stores key/secret, token and expiry time
+#		DATA_FILE	stores message id and outbound sms data
+#		APP_KEY			
+#		APP_SECRET
+#		TOKEN		auth token for app key/secret
+#		TOKEN_EXPIRE	token expiry time in seconds from epoch. ie. token creation time + TOKEN_INTERVAL
+#		TOKEN_INTERVAL	time in seconds token is valid. Set slightly shorter than APIs "expire_in" time in case clock is slower than server time
+#		SCREEN_TITLE	top bar text on menu
+#		SCREEN_PROMPT	text shown to user. eg. menus and options
+# 		RETURN_VAL	return value from function
+#
 TMP_FILE="temp.sms.sh.$$.$RANDOM"	# tmp file to store results for optMessageChain
-NTA='\033[0m' # No text attributes
+NTA='\033[0m' 				# No text attributes
 BOLD_RED='\033[31;1;40m'  
-INV='\033[47;30m' # dark grey background, white text
+INV='\033[47;30m' 			# dark grey background, white text
 BOLD='\033[7m'
 BOLD_GREEN='\033[32;1;40m'
 BOLD_YELLOW='\033[33;1;40m'
-SCREEN_TITLE=		# top bar text
-SCREEN_PROMPT=		# text to show user. eg menus and options
-RETURN_VAL=			# return value for all functions
-SAVE_TERM="$(stty -g)"	# save term settings 
+SAVE_TERM="$(stty -g)"			# save term settings 
 
 ############
 #
@@ -21,6 +30,7 @@ SAVE_TERM="$(stty -g)"	# save term settings
 # 
 ############
 function sendText(){
+	checkToken
 	local phone=$1
 	local msg=$(echo "$2" | sed 's/"/\\\"/g')		# double quotes need to be escaped for JSON 
 	local resp=$(
@@ -46,6 +56,7 @@ function sendText(){
 #
 ############
 function checkStatus(){
+	checkToken
 	RETURN_VAL=
 	local id=$1
 	local resp=$(curl -sH "Authorization: Bearer $TOKEN" "https://api.telstra.com/v1/sms/messages/$id")
@@ -64,6 +75,7 @@ function checkStatus(){
 #
 ###########
 function checkResponse(){
+	checkToken
 	RETURN_VAL=
 	local id=$1
 	local resp=$(curl -sH "Authorization: Bearer $TOKEN" "https://api.telstra.com/v1/sms/messages/$id/response")
@@ -490,6 +502,22 @@ function cleanUp() {
 	exit 1
 }
 
+###########
+#
+# checkToken - check whether authentication token is expired  
+#
+###########
+function checkToken(){
+	if [ $(($(date +%s) - $TOKEN_EXPIRE)) -gt 0 ] ; then # token expired
+		TOKEN=$(curl -s "https://api.telstra.com/v1/oauth/token?client_id=$APP_KEY&client_secret=$APP_SECRET&grant_type=client_credentials&scope=SMS")
+		TOKEN_INTERVAL=$(($(echo "$TOKEN" | grep -Po "expires_in\":\s*\"\K\d+") - 60)) 		
+		TOKEN=$(echo $TOKEN | grep -Po "access_token\": \"\K\w+")
+		TOKEN_EXPIRE=$(($(date +%s) + $TOKEN_INTERVAL))
+		sed -i "4c $TOKEN_EXPIRE" "$KEY_FILE"
+		sed -i "3c $TOKEN" "$KEY_FILE"
+	fi	
+}
+
 if [ $# -ne 2 -a $# -ne 4 ] ; then
 	echo -e "Usage: $0 {api key file} {data file} [mobile "message"]
 
@@ -500,21 +528,32 @@ if [ $# -ne 2 -a $# -ne 4 ] ; then
 	exit 1
 fi
 
-# check for valid key and generate auth token
+# check for key and generate auth token
 [ -e "$1" ] || { echo "Key file $1 not found"; exit 1; }
-[ -r "$1" ] || { echo "Key file $1 unreadable. Check permissions"; exit 1; } 
-APP_KEY=$(cat "$1" | head -n1)
-APP_SECRET=$(cat "$1" | tail -n1)
-TOKEN=$(curl -s "https://api.telstra.com/v1/oauth/token?client_id=$APP_KEY&client_secret=$APP_SECRET&grant_type=client_credentials&scope=SMS" | grep -Po "access_token\": \"\K\w+")
+[ -r "$1" -a -w "$1" ] || { echo "Key file $1 must be readable and writable. Check permissions"; exit 1; } 
+
+KEY_FILE="$1"		
+APP_KEY=$(sed -n 1p "$KEY_FILE")
+APP_SECRET=$(sed -n 2p "$KEY_FILE")
+TOKEN=$(sed -n 3p "$KEY_FILE")
+TOKEN_EXPIRE=$(sed -n 4p "$KEY_FILE")
+
+if [ -z "$TOKEN" ] ; then
+	TOKEN=$(curl -s "https://api.telstra.com/v1/oauth/token?client_id=$APP_KEY&client_secret=$APP_SECRET&grant_type=client_credentials&scope=SMS")
+	TOKEN_INTERVAL=$(($(echo "$TOKEN" | grep -Po "expires_in\":\s*\"\K\d+") - 60))
+	TOKEN=$(echo $TOKEN | grep -Po "access_token\": \"\K\w+")
+	echo "$TOKEN" >> "$KEY_FILE"
+	TOKEN_EXPIRE=$(($(date +%s) + $TOKEN_INTERVAL))
+	echo "$TOKEN_EXPIRE" >> "$KEY_FILE"
+fi
 
 # check data file
 if [ -e "$2" ] ; then
-	[ -w "$2" ] || { echo "Data file $2 not writable. Check permissions"; exit 1; }
-	[ -r "$2" ] || { echo "Data file $2 not readable. Check permissions"; exit 1; }
+	[ -w "$2" -a -r "$2" ] || { echo "Data file $2 be readable and writable. Check permissions"; exit 1; }
 else
 	touch "$2"
 fi
-DATA_FILE="$2"			
+DATA_FILE="$2" 	
 
 # send text message from command line
 if [ $# -eq 4 ] ; then		
@@ -532,9 +571,12 @@ fi
 
 trap cleanUp SIGINT SIGTERM
 while true ; do
+	RETURN_VAL=$(($TOKEN_EXPIRE - $(date +%s)))
+	[ $RETURN_VAL -gt 0 ] && RETURN_VAL="${RETURN_VAL}s" || RETURN_VAL='On next operation'
 	SCREEN_TITLE="Main Menu"
 	SCREEN_PROMPT="Send up to 100 SMS free per day to any Australian mobile
 Data file: [$DATA_FILE]
+Token update ETA: [$RETURN_VAL]
 \n1) Send text
 2) Check status
 3) Check response
