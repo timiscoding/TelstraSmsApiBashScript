@@ -235,7 +235,10 @@ function optStatus(){
 ############
 function optResponse(){
 	local msg_id
-	local res	# reply result
+	local res	# result
+	local msg
+	local ph
+	local date
 	SCREEN_TITLE="Check response"
 	while true ; do
 		SCREEN_PROMPT="Check whether a reply has been sent back by entering the message id.\n\nb) Back to main menu"
@@ -246,8 +249,20 @@ function optResponse(){
 		[ "$msg_id" = b ] && break
 		SCREEN_PROMPT="Response status for message id: $msg_id\n\n${BOLD_YELLOW}Checking id...${NTA}"
 		showScreen
-		checkResponse $msg_id
-		res="$RETURN_VAL"
+		res=$(cat "$DATA_FILE" | grep "$msg_id")
+		msg=$(echo "$res" | cut -d'|' -f4) # find reply from file
+		if [ -z "$msg" ] ; then # reply not in file
+			checkResponse "$msg_id"
+			res="$RETURN_VAL"
+			date=$(echo "$res" | cut -d'|' -f2 | sed s/\s//g)
+			date=$(date -d "$date" +"%Y%m%d%H%M%S")
+			msg=$(echo "$res" | cut -d'|' -f3 | cut -c2-)
+			sed -r -iOLD "s/${msg_id}.*/&\|$date\|$msg/" "$DATA_FILE"
+		else # reply in file
+			ph=$(echo "$res" | cut -d'|' -f2)
+			date=$(echo "$res" | cut -d'|' -f3 | sed -r "s/(.{4})(.{2})(.{2})(.{2})(.{2})(.{2})/\1-\2-\3 \4:\5:\6/") # convert time field to human readable format
+			res=$(printf "%10s | %19s | %s" "$ph" "$date" "$msg")
+		fi
 		if [ -n "$res" ] ; then
 			SCREEN_PROMPT="Response status for message id: $msg_id\n\n$(printf "%-10s | %-19s | %-s\n" "Mobile" "Date" "Message")\n$res\n\n1)Go back\t2) Back to main menu"
 		else
@@ -325,8 +340,21 @@ function optResponses(){
 		key="$(cat 2>/dev/null)"
 		SCREEN_PROMPT="Checking all responses in file ${DATA_FILE}\n\n${BOLD_YELLOW}Processing message ID $((++i)) / $msg_id_count${NTA}\n\nc) Cancel operation"
 		showScreen
-		checkResponse $id	
-		res="$RETURN_VAL"
+		res=$(cat "$DATA_FILE" | grep "$id")
+		msg=$(echo "$res" | cut -d'|' -f4) # find reply from file
+		if [ -z "$msg" ] ; then # reply not in file
+			checkResponse "$id"
+			res="$RETURN_VAL"
+			[ -z "$res" ] && continue
+			date=$(echo "$res" | cut -d'|' -f2 | sed s/\s//g)
+			date=$(date -d "$date" +"%Y%m%d%H%M%S")
+			msg=$(echo "$res" | cut -d'|' -f3 | cut -c2-)
+			sed -r -iOLD "s/${id}.*/&\|$date\|$msg/" "$DATA_FILE"
+		else # reply in file
+			ph=$(echo "$res" | cut -d'|' -f2)
+			date=$(echo "$res" | cut -d'|' -f3 | sed -r "s/(.{4})(.{2})(.{2})(.{2})(.{2})(.{2})/\1-\2-\3 \4:\5:\6/") # convert time field to human readable format
+			res=$(printf "%10s | %19s | %s" "$ph" "$date" "$msg")
+		fi
 		[ -n "$res" ] && { res_count=$((res_count + 1)); all_res="$all_res$res\n"; }
 		if [[ "$key" =~ c ]] ; then
 			if [ -t 0 ] ; then stty $SAVE_TERM; fi
@@ -502,7 +530,7 @@ if [ $# -eq 4 ] ; then
 	fi
 fi
 
-trap clean_up SIGINT SIGTERM
+trap cleanUp SIGINT SIGTERM
 while true ; do
 	SCREEN_TITLE="Main Menu"
 	SCREEN_PROMPT="Send up to 100 SMS free per day to any Australian mobile
