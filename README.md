@@ -16,6 +16,8 @@
 
 This script enables you to send SMS, check delivery status and any replies received.
 
+![Telstra SMS script menu](https://cloud.githubusercontent.com/assets/9711999/8271000/2d08f8bc-1843-11e5-9f88-c41268d04721.PNG)
+
 ## Requirements
 * Linux system, bash 4+ & curl
 * Tested working in Cygwin (bash 4.3.39(2)-release, curl 7.42.1)
@@ -42,3 +44,5 @@ The script can also be run interactively: `./sms.sh <key file> <data file>`.  Th
 2. check status - see if your message/s got delivered given a message id
 3. check response/s - see the replies to your messages given a message id
 4. check message chain - see all replies given a mobile number
+
+![Telstra SMS script send text](https://cloud.githubusercontent.com/assets/9711999/8271004/37e1fb08-1843-11e5-9ae6-41da3af65cd5.PNG)
