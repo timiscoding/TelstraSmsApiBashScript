@@ -17,7 +17,7 @@
 This script enables you to send SMS, check delivery status and any replies received.
 
 ## Requirements
-* Linux system, bash 3+ & curl
+* Linux system, bash 4+ & curl
 * Tested working in Cygwin (bash 4.3.39(2)-release, curl 7.42.1)
 * Tested working in Ubuntu (bash 4.3.11(1)-release, curl 7.35.0)
 
