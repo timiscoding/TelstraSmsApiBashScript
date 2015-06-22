@@ -8,6 +8,7 @@
 - [Before running the script](#before-running-the-script)
 - [Running the script](#running-the-script)
 - [Known issues](#known-issues)
+- [Change log](#change-log)
 
 <!-- /MarkdownTOC -->
 
@@ -37,7 +38,17 @@ Once registered
 6. Run the script `./sms.sh <key file>`
 
 ## Running the script
-The fastest way to send SMS is to run the script with command line args: `./sms.sh <key file> <data file> <mobile> "<message>"`.  If the message is longer than 160 characters, the message will be truncated. The script will create a data file with the given name if it doesn't exist.  Otherwise, it will read and append data to an existing one.
+The fastest way to send SMS is to run the script with command line args: `./sms.sh <key file> <data file> <mobile> "<message>"`.  
+### Be careful sending a message via command line
+Be sure to wrap **double quotes around message** otherwise only the first word will be sent!  
+If the message itself contains a double quote, you must replace it with \"
+```Eg. hi becomes \"hi\"```
+'$' must be replaced with \$
+```Eg. $2 becomes \$2```
+If the message is longer than 160 characters, the message will be truncated. 
+The above replacements are due to the way bash interprets command line args.  You can also wrap the message in single quotes but then single quotes within the message need to be escaped with `'\''`. These problems don't apply when sending a message interactively (described below).
+
+The script will create a data file with the given name if it doesn't exist.  Otherwise, it will read and append data to an existing one.
 
 The script can also be run interactively: `./sms.sh <key file> <data file>`.  This lets you:
 
@@ -50,3 +61,7 @@ The script can also be run interactively: `./sms.sh <key file> <data file>`.  Th
 
 ## Known issues
 * In check message chain, inbound messages appear before corresponding outbound messages due to Telstra incorrectly handling timestamps.  [A fix is coming soon.](https://dev.telstra.com/content/timestamp-formats-inconsistent)
+
+## Change log
+* Updated readme and usage instructions - certain characters need replacement when sending message non-interactively
+* Added character count in send message confirm screen

@@ -39,8 +39,10 @@ readonly E_NO_REPLY=3			# no reply from message id
 send_text() {
   check_token || return ${E_SRV_TIMEOUT}
   local phone=$1
-  # double quotes need to be escaped for JSON  
-  local msg=$(echo "$2" | sed 's/"/\\\"/g')		
+# double quotes and back slash need to be escaped for JSON 
+  local msg=$(echo "$2" \
+    | sed 's/\\/\\\\/g' \
+    | sed 's/"/\\\"/g')
   local resp=$(
     curl --connect-timeout 5 -m 5 -s -H "Content-Type: application/json" \
     -H "Authorization: Bearer $TOKEN" \
@@ -217,7 +219,7 @@ opt_send_text() {
   get_input MSG "" "Enter text message (160 char limit):"
   msg="$RETURN_VAL"
   while true ; do
-    SCREEN_PROMPT="${s1}\n${s2}\n${INV}${s3}${NTA}\n\n\tMobile: [$ph]\n\tMessage: [$msg]\n\nChoose:\n1) edit mobile\t2) edit message\t3) send text\t4) back to main menu"
+    SCREEN_PROMPT="${s1}\n${s2}\n${INV}${s3}${NTA}\n\n\tMobile: [$ph]\n\tMessage [${#msg} chars]: [$msg]\n\nChoose:\n1) edit mobile\t2) edit message\t3) send text\t4) back to main menu"
     show_screen
     read -p "Choice:" choice
     case $choice in
@@ -727,11 +729,18 @@ check_token() {
 
 main() {
   local token_update # time in seconds when token needs updating
-  if [ $# -ne 2 ] && [ $# -ne 4 ] ; then
+  if [ $# -ne 2 ] && [ $# -ne 4 ] && [ $# -ne 3 ] ; then
     printf "Usage: $0 {api key file} {data file} [mobile "message"]
   
   \tmobile - eg.0412345678
-  \tmessage - Message must be wrapped in double quotes.  If longer than 160 characters, message is truncated
+  \tmessage - Message must be wrapped in double quotes otherwise only the first word will be sent.  
+
+\tIf the message itself contains a double quote, you must replace it with \\\\\"
+\tEg. "hi" becomes \\\\\"hi\\\\\". 
+\t'$' must be replaced with \\\\$ 
+\tEg. \$2 becomes \\\\\$2 
+\tIf longer than 160 characters, message is truncated
+
   \tdata file - stores message data. Can read from existing file or create a new one if it doesn't exist.
   \tapi key file - If you don't have an app key/secret, sign up for a T.Dev account at https://dev.telstra.com/ and create a new app using the SMS API.  Put the app key on line 1 and app secret on line 2 of the api key file\n"
     exit 1
