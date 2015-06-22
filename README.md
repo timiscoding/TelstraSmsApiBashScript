@@ -7,6 +7,7 @@
 - [Requirements](#requirements)
 - [Before running the script](#before-running-the-script)
 - [Running the script](#running-the-script)
+- [Known issues](#known-issues)
 
 <!-- /MarkdownTOC -->
 
@@ -46,3 +47,6 @@ The script can also be run interactively: `./sms.sh <key file> <data file>`.  Th
 4. check message chain - see all replies given a mobile number
 
 ![Telstra SMS script send text](https://cloud.githubusercontent.com/assets/9711999/8271004/37e1fb08-1843-11e5-9ae6-41da3af65cd5.PNG)
+
+## Known issues
+* In check message chain, inbound messages appear before corresponding outbound messages due to Telstra incorrectly handling timestamps.  [A fix is coming soon.](https://dev.telstra.com/content/timestamp-formats-inconsistent)

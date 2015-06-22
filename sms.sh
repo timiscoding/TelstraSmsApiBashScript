@@ -6,15 +6,15 @@
 #
 # Global variables
 #   KEY_FILE			stores key/secret, token and expiry time
-#	 DATA_FILE			stores message id and outbound sms data
-#	 APP_KEY			
-#	 APP_SECRET
-#	 TOKEN				auth token for app key/secret
-#	 TOKEN_EXPIRE		token expiry time in seconds from epoch. ie. token creation time + TOKEN_INTERVAL
-#	 TOKEN_INTERVAL	time in seconds token is valid. Set slightly shorter than APIs "expire_in" time in case clock is slower than server time
-#	 SCREEN_TITLE		top bar text on menu
-#	 SCREEN_PROMPT		text shown to user. eg. menus and options
-# 	 RETURN_VAL			return value from function
+#   DATA_FILE			stores message id and outbound sms data
+#   APP_KEY			
+#   APP_SECRET
+#   TOKEN			auth token for app key/secret
+#   TOKEN_EXPIRE		token expiry time in seconds from epoch. ie. token creation time + TOKEN_INTERVAL
+#   TOKEN_INTERVAL		time in seconds token is valid. Set slightly shorter than APIs "expire_in" time in case clock is slower than server time
+#   SCREEN_TITLE		top bar text on menu
+#   SCREEN_PROMPT		text shown to user. eg. menus and options
+#   RETURN_VAL			return value from function
 #
 readonly NTA='\033[0m' 				# No text attributes
 readonly BOLD_RED='\033[31;1;40m'  
@@ -31,10 +31,10 @@ readonly E_NO_REPLY=3			# no reply from message id
 # Globals: 
 #   RETURN_VAL
 # Arguments:
-# 	 phone
+#   phone
 # Returns:
 #   E_SRV_TIMEOUT
-# 	 E_SRV_ERR
+#   E_SRV_ERR
 ############
 send_text() {
   check_token || return ${E_SRV_TIMEOUT}
@@ -46,7 +46,7 @@ send_text() {
     -H "Authorization: Bearer $TOKEN" \
     -d "{\"to\":\"$phone\", \"body\":\"$msg\"}" \
     "https://api.telstra.com/v1/sms/messages") 
-  [ $? -ne 0 ] && return 1
+  [ $? -ne 0 ] && return ${E_SRV_TIMEOUT}
   local server_status=$(echo "$resp" | grep -Po "status\":\s\K\d+")
   local server_msg=$(echo "$resp" | grep -Po "message\":\s\K[\w\s]+")
   local msg_id=$(echo "$resp" | grep -Po "messageId\":\"\K\w+")
@@ -63,10 +63,10 @@ send_text() {
 # Globals:
 #   RETURN_VAL
 # Arguments:
-# 	 id - Message ID
+#   id - Message ID
 # Returns:
-#	 E_SRV_TIMEOUT
-# 	 E_SRV_ERR
+#   E_SRV_TIMEOUT
+#   E_SRV_ERR
 ############
 check_status() {
   check_token || return ${E_SRV_TIMEOUT}
@@ -76,7 +76,7 @@ check_status() {
     curl --connect-timeout 5 -m 5 \
     -sH "Authorization: Bearer $TOKEN" \
     "https://api.telstra.com/v1/sms/messages/$id")
-  [ $? -ne 0 ] && return 1
+  [ $? -ne 0 ] && return S{E_SRV_TIMEOUT}
   local ph=$(echo "$resp" | grep -Po "to\":\"\K\d+" | sed s/^61/0/)
   local received=$(echo "$resp" | grep -Po "receivedTimestamp\":\"\K[\w:-]+")
   local sent=$(echo "$resp" | grep -Po "sentTimestamp\":\"\K[\w:-]+")
@@ -93,10 +93,10 @@ check_status() {
 # Globals:
 #   RETURN_VAL
 # Arguments:
-# 	 id - message ID
+#   id - message ID
 # Returns:
-# 	 E_SRV_TIMEOUT
-# 	 E_SRV_ERR
+#   E_SRV_TIMEOUT
+#   E_SRV_ERR
 ###########
 check_response() {
   check_token || return ${E_SRV_TIMEOUT}
@@ -126,11 +126,11 @@ check_response() {
 # Display top bar, menu, options
 # Globals:
 #   SCREEN_TITLE
-#	 SCREEN_PROMPT
+#   SCREEN_PROMPT
 # Arguments:
-# 	 None
+#   None
 # Returns:
-# 	 None
+#   None
 ##########
 show_screen() {
   local cols=$(stty size | cut -d' ' -f2)
@@ -146,13 +146,13 @@ show_screen() {
 ###########
 # Get user input for phone/message/message ID
 # Globals:
-#	 RETURN_VAL
+#   RETURN_VAL
 # Arguments:
-# 	 type - type of user input
-# 	 text - initial editable user input text
-# 	 prompt - text to show before waiting for input
+#   type - type of user input
+#   text - initial editable user input text
+#   prompt - text to show before waiting for input
 # Returns:
-# 	 None
+#   None
 ###########
 get_input() {
   local type=$1
@@ -184,19 +184,19 @@ get_input() {
 ##########
 # Menu option for sending text message
 # Globals:
-# 	 SCREEN_TITLE
-# 	 SCREEN_PROMPT
-# 	 INV
-# 	 NTA
-# 	 BOLD_YELLOW
-# 	 BOLD_RED
-# 	 BOLD_GREEN
-# 	 DATA_FILE
-# 	 RETURN_VAL
+#   SCREEN_TITLE
+#   SCREEN_PROMPT
+#   INV
+#   NTA
+#   BOLD_YELLOW
+#   BOLD_RED
+#   BOLD_GREEN
+#   DATA_FILE
+#   RETURN_VAL
 # Arguments:
-# 	 None
+#   None
 # Returns:
-#	 None
+#   None
 ##########
 opt_send_text() {
   SCREEN_TITLE="Send Text"
@@ -268,15 +268,15 @@ opt_send_text() {
 # Menu option for checking message delivery status
 # Globals:
 #   SCREEN_TITLE
-# 	 SCREEN_PROMPT
+#   SCREEN_PROMPT
 #   RETURN_VAL
-# 	 BOLD_YELLOW
-# 	 NTA
-# 	 BOLD_RED
+#   BOLD_YELLOW
+#   NTA
+#   BOLD_RED
 # Arguments:
-# 	 None
+#   None
 # Returns:
-# 	 None 		
+#   None
 ###########
 opt_status() {
   local msg_id
@@ -302,7 +302,7 @@ opt_status() {
       SCREEN_PROMPT="${BOLD_RED}Server timeout${NTA}\n\n1) Go back\t2) Back to main menu"
     elif [ $return_code -eq ${E_SRV_ERR} ] ; then
       SCREEN_PROMPT="Delivery status for message id: $msg_id\n\n${BOLD_RED}No results. Please check message id.${NTA}\n\n1) Go back\t2) Back to main menu"
-    fi				 
+    fi 
     while true ; do
       show_screen
       read -p "Choice:" opt
@@ -318,16 +318,16 @@ opt_status() {
 # Menu option for checking a reply to a message ID
 # Globals:
 #   SCREEN_TITLE
-# 	 SCREEN_PROMPT
-# 	 BOLD_YELLOW
-# 	 BOLD_RED
-# 	 NTA
-# 	 DATA_FILE
-# 	 RETURN_VAL
+#   SCREEN_PROMPT
+#   BOLD_YELLOW
+#   BOLD_RED
+#   NTA
+#   DATA_FILE
+#   RETURN_VAL
 # Arguments:
-# 	 None
-# Returns: 		
-# 	 None
+#   None
+# Returns:
+#   None
 ############
 opt_response() {
   local msg_id
@@ -363,7 +363,7 @@ opt_response() {
       elif [ $return_code -eq ${E_SRV_ERR} ] ; then
         SCREEN_PROMPT="Response status for message id: $msg_id\n\n${BOLD_RED}Server error ${RETURN_VAL}. Please check message id.${NTA}\n\n1)Go back\t2) Back to main menu"
       elif [ $return_code -eq ${E_NO_REPLY} ] ; then
-		  SCREEN_PROMPT="Response status for message id: $msg_id\n\nNo reply yet for this message ID.\n\n1)Go back\t2) Back to main menu"
+        SCREEN_PROMPT="Response status for message id: $msg_id\n\nNo reply yet for this message ID.\n\n1)Go back\t2) Back to main menu"
       fi
     else # reply in file
       ph=$(echo "$res" | cut -d'|' -f2)
@@ -390,15 +390,15 @@ opt_response() {
 #   SCREEN_TITLE
 #   SCREEN_PROMPT
 #   DATA_FILE
-# 	 SAVE_TERM
-# 	 BOLD_RED
-# 	 BOLD_YELLOW
-# 	 NTA
+#   SAVE_TERM
+#   BOLD_RED
+#   BOLD_YELLOW
+#   NTA
 #   RETURN_VAL
 # Arguments:
 #   None
 # Returns:
-# 	 None 		 		
+#   None
 #############
 opt_statuses() {
   local msg_ids
@@ -448,24 +448,24 @@ opt_statuses() {
     SCREEN_PROMPT="Found 0 results from $msg_id_count message IDs.\n\nPress ENTER to return"
   fi
   show_screen
-  read REPLY				 
+  read REPLY 
 }
 
 #############
 # Menu option for checking replies to all message ids in file DATA_FILE
 # Globals:
-#	 SCREEN_TITLE
-# 	 SCREEN_PROMPT
-# 	 DATA_FILE
-# 	 BOLD_RED
-# 	 BOLD_YELLOW
-# 	 NTA
-# 	 RETURN_VAL
-# 	 SAVE_TERM 		
+#   SCREEN_TITLE
+#   SCREEN_PROMPT
+#   DATA_FILE
+#   BOLD_RED
+#   BOLD_YELLOW
+#   NTA
+#   RETURN_VAL
+#   SAVE_TERM
 # Arguments:
-# 	 None
+#   None
 # Returns:
-# 	 None
+#   None
 #############
 opt_responses() {
   local msg_ids
@@ -537,26 +537,26 @@ opt_responses() {
     SCREEN_PROMPT="Found 0 replies from $msg_id_count message IDs.\n\nPress ENTER to return"
   fi
   show_screen
-  read REPLY				 
+  read REPLY
 }
 
 #############
 # Menu option for returning all inbound/outbound messages in chronological order for a given mobile
 # Globals:
-#	 OIFS - old internal field separator
-# 	 IFS
-# 	 SCREEN_TITLE
-#	 SCREEN_PROMPT
-# 	 RETURN_VAL
-# 	 DATA_FILE
-# 	 BOLD_YELLOW
-# 	 NTA
-# 	 BOLD_RED
-# 	 SAVE_TERM
+#   OIFS - old internal field separator
+#   IFS
+#   SCREEN_TITLE
+#   SCREEN_PROMPT
+#   RETURN_VAL
+#   DATA_FILE
+#   BOLD_YELLOW
+#   NTA
+#   BOLD_RED
+#   SAVE_TERM
 # Arguments:
-# 	 None
+#   None
 # Returns:
-# 	 None
+#   None
 #############
 opt_message_chain() {
   local ph
@@ -684,11 +684,11 @@ opt_message_chain() {
 # Restore terminal settings and show warnings if script is force closed
 # Globals:
 #   SAVE_TERM
-# 	 DATA_FILE
+#   DATA_FILE
 # Arguments:
-# 	 None
+#   None
 # Returns:
-# 	 None
+#   None
 ############
 clean_up() {
   printf "\033c\r" # clears screen. compatible with VT100 terminals
@@ -700,34 +700,29 @@ clean_up() {
 ###########
 # Check whether authentication token is expired  
 # Globals:
-#	 TOKEN
-# 	 SCREEN_PROMPT
-# 	 TOKEN_EXPIRE
-# 	 APP_KEY
-# 	 APP_SECRET
-# 	 TOKEN_INTERVAL
-# 	 KEY_FILE
+#   TOKEN
+#   SCREEN_PROMPT
+#   TOKEN_EXPIRE
+#   APP_KEY
+#   APP_SECRET
+#   TOKEN_INTERVAL
+#   KEY_FILE
 # Arguments:
-# 	 None
+#   None
 # Returns:
-# 	 E_SRV_TIMEOUT
+#   E_SRV_TIMEOUT
 ###########
 check_token() {
   if [ $(($(date +%s) - $TOKEN_EXPIRE)) -gt 0 ] ; then # token expired
     TOKEN=$(curl --connect-timeout 5 -m 5 -s "https://api.telstra.com/v1/oauth/token?client_id=$APP_KEY&client_secret=$APP_SECRET&grant_type=client_credentials&scope=SMS")
-    if [ $? -ne 0 ] ; then
-      SCREEN_PROMPT="Server took too long to respond. Could not update auth token. Press ENTER to continue"
-      show_screen
-      read REPLY
-      return ${E_SRV_TIMEOUT}
-    fi
+    [ $? -ne 0 ] && return ${E_SRV_TIMEOUT}
     TOKEN_INTERVAL=$(($(echo "$TOKEN" \
                         | grep -Po "expires_in\":\s*\"\K\d+") - 60)) \
     TOKEN=$(echo $TOKEN | grep -Po "access_token\": \"\K\w+")
     TOKEN_EXPIRE=$(($(date +%s) + $TOKEN_INTERVAL))
     sed -i "4c $TOKEN_EXPIRE" "$KEY_FILE"
     sed -i "3c $TOKEN" "$KEY_FILE"
-  fi	
+  fi
 }
 
 main() {
@@ -746,7 +741,7 @@ main() {
   [ -e "$1" ] || { echo "Key file $1 not found"; exit 1; }
   [ -r "$1" ] && [ -w "$1" ] || { echo "Key file $1 must be readable and writable. Check permissions"; exit 1; } 
   
-  KEY_FILE="$1"		
+  KEY_FILE="$1"
   APP_KEY=$(sed -n 1p "$KEY_FILE")
   APP_SECRET=$(sed -n 2p "$KEY_FILE")
   TOKEN=$(sed -n 3p "$KEY_FILE")
@@ -773,10 +768,10 @@ main() {
   else
     touch "$2"
   fi
-  DATA_FILE="$2" 	
+  DATA_FILE="$2"
   
   # send text message from command line
-  if [ $# -eq 4 ] ; then		
+  if [ $# -eq 4 ] ; then
     send_text "$3" "${4:0:160}"
     if [ $? -eq 0 ] ; then
       printf "Message sent. To check status/response, use message id: ${RETURN_VAL}\nIt has been added to file ${DATA_FILE}.\n"
