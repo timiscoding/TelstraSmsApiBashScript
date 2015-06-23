@@ -18,7 +18,7 @@
 
 This script enables you to send SMS, check delivery status and any replies received.
 
-![Telstra SMS script menu](https://cloud.githubusercontent.com/assets/9711999/8271000/2d08f8bc-1843-11e5-9f88-c41268d04721.PNG)
+<img src="https://cloud.githubusercontent.com/assets/9711999/8271000/2d08f8bc-1843-11e5-9f88-c41268d04721.PNG" alt="Main menu screen" width="320" height="207">
 
 ## Requirements
 * Linux system, bash 4+ & curl
@@ -41,20 +41,16 @@ Once registered
 ### Non-interactive mode
 The fastest way to send SMS is to run the script with command line args: `./sms.sh <key file> <data file> <mobile> "<message>"`.  
 _Be careful sending a message via command line_
+
 Be sure to wrap **double quotes around message** otherwise only the first word will be sent!  
-
 If the message itself contains a double quote, you must replace it with \"
-
 ```
 Eg. "hi" becomes \"hi\"
 ```
-
 $ must be replaced with \$
-
 ```
 Eg. $2 becomes \$2
 ```
-
 If the message is longer than 160 characters, the message will be truncated. 
 
 The above replacements are due to the way bash interprets command line args.  You can also wrap the message in single quotes but then single quotes within the message need to be replaced with `'\''`. These problems don't apply when sending a message interactively (described below).
@@ -67,9 +63,9 @@ The script can also be run interactively: `./sms.sh <key file> <data file>`.  Th
 1. send sms - with a message character count checker and confirm screen
 2. check status - see if your message/s got delivered given a message id
 3. check response/s - see the replies to your messages given a message id
-4. check message chain - see all replies given a mobile number
+4. check message chain - see all replies ordered chronologically given a mobile number
 
-![Telstra SMS script send text](https://cloud.githubusercontent.com/assets/9711999/8271004/37e1fb08-1843-11e5-9ae6-41da3af65cd5.PNG)
+<img src="https://cloud.githubusercontent.com/assets/9711999/8271004/37e1fb08-1843-11e5-9ae6-41da3af65cd5.PNG" alt="Confirm send screen" width="320" height="207">
 
 ## Known issues
 * In check message chain, inbound messages appear before corresponding outbound messages due to Telstra incorrectly handling timestamps.  [A fix is coming soon.](https://dev.telstra.com/content/timestamp-formats-inconsistent)
@@ -77,6 +73,7 @@ The script can also be run interactively: `./sms.sh <key file> <data file>`.  Th
 ## Change log
 23/6/2015
 * Updated progress output in checking statuses and responses
+
 22/6/2015
 * Updated readme and usage instructions - certain characters need replacement when sending message non-interactively
 * Added character count in send message confirm screen
