@@ -38,13 +38,14 @@ Once registered
 6. Run the script `./sms.sh <key file>`
 
 ## Running the script
+### Non-interactive mode
 The fastest way to send SMS is to run the script with command line args: `./sms.sh <key file> <data file> <mobile> "<message>"`.  
-### Be careful sending a message via command line
+_Be careful sending a message via command line_
 Be sure to wrap **double quotes around message** otherwise only the first word will be sent!  
 
 If the message itself contains a double quote, you must replace it with \"
 
-```Eg. hi becomes \"hi\"```
+  ```Eg. "hi" becomes \"hi\"```
 
 $ must be replaced with \$
 
@@ -56,6 +57,7 @@ The above replacements are due to the way bash interprets command line args.  Yo
 
 The script will create a data file with the given name if it doesn't exist.  Otherwise, it will read and append data to an existing one.
 
+### Interactive mode
 The script can also be run interactively: `./sms.sh <key file> <data file>`.  This lets you:
 
 1. send sms - with a message character count checker and confirm screen
