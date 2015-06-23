@@ -433,15 +433,13 @@ opt_statuses() {
     if [ $return_code -eq 0 ] ; then
       res_count=$((res_count + 1))
       all_res="$all_res$res\n"
-      SCREEN_PROMPT="Checking all statuses in file ${DATA_FILE}\n\n${BOLD_YELLOW}Processed message ID $i / $msg_id_count\t\tc) Cancel operation${NTA}\n\n$(printf "%-10s | %-19s | %-19s | %s\n" "Mobile" "Received" "Sent" "Status")\n$all_res"
-      show_screen
     elif [ $return_code -eq ${E_SRV_TIMEOUT} ] ; then
-      SCREEN_PROMPT="Checking all statuses in file ${DATA_FILE}\n\n${BOLD_YELLOW}Processed message ID $i / $msg_id_count\t\tc) Cancel operation${NTA}\n\n$(printf "%-10s | %-19s | %-19s | %s\n" "Mobile" "Received" "Sent" "Status")\n$all_res${BOLD_RED}Server timeout${NTA}"
-      show_screen
+      all_res="$all_res${BOLD_RED}Server timeout${NTA}\n"
     elif [ $return_code -eq ${E_SRV_ERR} ] ; then
-      SCREEN_PROMPT="Checking all statuses in file ${DATA_FILE}\n\n${BOLD_YELLOW}Processed message ID $i / $msg_id_count\t\tc) Cancel operation${NTA}\n\n$(printf "%-10s | %-19s | %-19s | %s\n" "Mobile" "Received" "Sent" "Status")\n$all_res${BOLD_RED}No result for ID $id${NTA}"
-      show_screen
+      all_res="$all_res${BOLD_RED}Server error ${res}${NTA}\n"
     fi
+    SCREEN_PROMPT="Checking all statuses in file ${DATA_FILE}\n\n${BOLD_YELLOW}Processed message ID $i / $msg_id_count\t\tc) Cancel operation${NTA}\n\n$(printf "%-10s | %-19s | %-19s | %s\n" "Mobile" "Received" "Sent" "Status")\n$all_res"
+    show_screen
   done 
   if [ -t 0 ] ; then stty $SAVE_TERM; fi
   if [ $res_count -gt 0 ] ; then
@@ -502,20 +500,30 @@ opt_responses() {
         date=$(echo "$res" | cut -d'|' -f2 | sed s/\s//g)
         date=$(date -d "$date" +"%s")
         msg=$(echo "$res" | cut -d'|' -f3 | cut -c2-)
-        sed -r -iOLD "s/${id}.*/&\|$date\|$msg/" "$DATA_FILE"
+        sed -r -iOLD "s/${id}.*/&\|$date\|$msg/" "$DATA_FILE"       
       elif [ $return_code -eq ${E_SRV_TIMEOUT} ] ; then
-        SCREEN_PROMPT="${BOLD_YELLOW}Processed messaged ID $i / $msg_id_count\t\t c) Cancel operation${NTA}\n\n$(printf "%-10s | %-19s | %-s\n" "Mobile" "Date" "Message")\n$all_res${BOLD_RED}Server timeout${NTA}"
+        all_res="$all_res${BOLD_RED}Server timeout${NTA}\n"
+        SCREEN_PROMPT="${BOLD_YELLOW}Processed messaged ID $i / $msg_id_count\t\t c) Cancel operation${NTA}\n\n$(printf "%-10s | %-19s | %-s\n" "Mobile" "Date" "Message")\n$all_res"
         show_screen
       elif [ $return_code -eq ${E_SRV_ERR} ] ; then
-        SCREEN_PROMPT="Message id: $id\n\n${BOLD_RED}Server error ${RETURN_VAL}. Please check message id.${NTA}\n\n1) continue\t2) delete row in data file & continue\t3) Back to main menu"
+        all_res="${all_res}${BOLD_RED}Server error ${RETURN_VAL}${NTA}\n"
+        SCREEN_PROMPT="${BOLD_YELLOW}Processed messaged ID $i / $msg_id_count\t\t c) Cancel operation${NTA}\n\n$(printf "%-10s | %-19s | %-s\n" "Mobile" "Date" "Message")\n$all_res\n\n1) continue\t2) delete message ID in data file & continue\t3) Back to main menu"
         while true ; do
+          show_screen
           case $opt in
-            1) continue 2;;
-            2) sed -n -iOLD "/${id}/!p" "$DATA_FILE"; continue 2;;
+            1) 
+              continue 2
+            ;;
+            2) 
+              all_res="${all_res}${BOLD_RED}Deleted message ID ${id}\n"
+              sed -n -iOLD "/${id}/!p" "$DATA_FILE"
+              continue 2;;
             3) break;;
           esac
         done
       elif [ $return_code -eq ${E_NO_REPLY} ] ; then
+        SCREEN_PROMPT="${BOLD_YELLOW}Processed messaged ID $i / $msg_id_count\t\t c) Cancel operation${NTA}\n\n$(printf "%-10s | %-19s | %-s\n" "Mobile" "Date" "Message")\n$all_res"
+        show_screen
         continue
       fi
     else # reply in file

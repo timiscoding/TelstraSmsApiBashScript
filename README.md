@@ -45,11 +45,15 @@ Be sure to wrap **double quotes around message** otherwise only the first word w
 
 If the message itself contains a double quote, you must replace it with \"
 
-  ```Eg. "hi" becomes \"hi\"```
+```
+Eg. "hi" becomes \"hi\"
+```
 
 $ must be replaced with \$
 
-```Eg. $2 becomes \$2```
+```
+Eg. $2 becomes \$2
+```
 
 If the message is longer than 160 characters, the message will be truncated. 
 
@@ -71,5 +75,8 @@ The script can also be run interactively: `./sms.sh <key file> <data file>`.  Th
 * In check message chain, inbound messages appear before corresponding outbound messages due to Telstra incorrectly handling timestamps.  [A fix is coming soon.](https://dev.telstra.com/content/timestamp-formats-inconsistent)
 
 ## Change log
+23/6/2015
+* Updated progress output in checking statuses and responses
+22/6/2015
 * Updated readme and usage instructions - certain characters need replacement when sending message non-interactively
 * Added character count in send message confirm screen
