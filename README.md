@@ -73,6 +73,7 @@ The script can also be run interactively: `./sms.sh <key file> <data file>`.  Th
 ## Change log
 23/6/2015
 * Updated progress output in checking statuses and responses
+* Fixed check message chain not showing date
 
 22/6/2015
 * Updated readme and usage instructions - certain characters need replacement when sending message non-interactively

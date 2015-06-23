@@ -793,7 +793,7 @@ main() {
     if [ $? -eq 0 ] ; then
       printf "Message sent. To check status/response, use message id: ${RETURN_VAL}\nIt has been added to file ${DATA_FILE}.\n"
       echo "$RETURN_VAL|$3" >> "$DATA_FILE"
-      echo "OUTBOUND|$3|$(date +"%Y%m%d%H%M%S" | cut -c1-19)|$4" >> "$DATA_FILE"
+      echo "OUTBOUND|$3|$(date +"%s" | cut -c1-19)|$4" >> "$DATA_FILE"
       exit 0
     else
       echo "Message not sent. Server error $RETURN_VAL"
