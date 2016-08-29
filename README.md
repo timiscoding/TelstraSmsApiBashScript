@@ -14,7 +14,7 @@
 
 
 ## Intro 
-[Telstra SMS API](https://dev.telstra.com/content/sms-api-0) currently lets you send text messages to any Australian mobile phone number [for free for the time being as it undergoes beta testing](https://dev.telstra.com/pricing).  100 text limit per day. 
+[Telstra SMS API](https://dev.telstra.com/content/sms-api-0) currently lets you send text messages to any Australian mobile phone number [for free for the time being as it undergoes beta testing](https://dev.telstra.com/pricing).  1000 sms limit per month or 32/day. 
 
 This script enables you to send SMS, check delivery status and any replies received.
 
@@ -68,9 +68,13 @@ The script can also be run interactively: `./sms.sh <key file> <data file>`.  Th
 <img src="https://cloud.githubusercontent.com/assets/9711999/8271004/37e1fb08-1843-11e5-9ae6-41da3af65cd5.PNG" alt="Confirm send screen" width="320" height="207">
 
 ## Known issues
+* Main screen says 100 SMS daily but telstra have changed their free plan to 1000 SMS per month now.
 * In check message chain, inbound messages appear before corresponding outbound messages due to Telstra incorrectly handling timestamps.  [A fix is coming soon.](https://dev.telstra.com/content/timestamp-formats-inconsistent)
 
 ## Change log
+29/8/2016
+* busybox support
+
 23/6/2015
 * Updated progress output in checking statuses and responses
 * Fixed check message chain not showing date
