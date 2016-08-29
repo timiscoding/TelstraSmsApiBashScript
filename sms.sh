@@ -2,12 +2,12 @@
 #
 # TelstraSmsApiBashScript
 # github.com/timiscoding
-# Uses the Telstra SMS API to send and receive text messages. Australian mobiles only. 
+# Uses the Telstra SMS API to send and receive text messages. Australian mobiles only.
 #
 # Global variables
 #   KEY_FILE			stores key/secret, token and expiry time
 #   DATA_FILE			stores message id and outbound sms data
-#   APP_KEY			
+#   APP_KEY
 #   APP_SECRET
 #   TOKEN			auth token for app key/secret
 #   TOKEN_EXPIRE		token expiry time in seconds from epoch. ie. token creation time + TOKEN_INTERVAL
@@ -17,18 +17,18 @@
 #   RETURN_VAL			return value from function
 #
 readonly NTA='\033[0m' 				# No text attributes
-readonly BOLD_RED='\033[31;1;40m'  
+readonly BOLD_RED='\033[31;1;40m'
 readonly INV='\033[7m' 			# inverted bg/fg
 readonly BOLD_GREEN='\033[32;1;40m'
 readonly BOLD_YELLOW='\033[33;1;40m'
-readonly SAVE_TERM="$(stty -g)"			# save term settings 
+readonly SAVE_TERM="$(stty -g)"			# save term settings
 readonly E_SRV_TIMEOUT=1			# server timeout
-readonly E_SRV_ERR=2				# server error code 
+readonly E_SRV_ERR=2				# server error code
 readonly E_NO_REPLY=3			# no reply from message id
 
 ############
 # Make Telstra API call to send a text message
-# Globals: 
+# Globals:
 #   RETURN_VAL
 # Arguments:
 #   phone
@@ -39,7 +39,7 @@ readonly E_NO_REPLY=3			# no reply from message id
 send_text() {
   check_token || return ${E_SRV_TIMEOUT}
   local phone=$1
-# double quotes and back slash need to be escaped for JSON 
+# double quotes and back slash need to be escaped for JSON
   local msg=$(echo "$2" \
     | sed 's/\\/\\\\/g' \
     | sed 's/"/\\\"/g')
@@ -47,11 +47,11 @@ send_text() {
     curl --connect-timeout 5 -m 5 -s -H "Content-Type: application/json" \
     -H "Authorization: Bearer $TOKEN" \
     -d "{\"to\":\"$phone\", \"body\":\"$msg\"}" \
-    "https://api.telstra.com/v1/sms/messages") 
+    "https://api.telstra.com/v1/sms/messages")
   [ $? -ne 0 ] && return ${E_SRV_TIMEOUT}
-  local server_status=$(echo "$resp" | grep -Po "status\":\s\K\d+")
-  local server_msg=$(echo "$resp" | grep -Po "message\":\s\K[\w\s]+")
-  local msg_id=$(echo "$resp" | grep -Po "messageId\":\"\K\w+")
+  local server_status=$(echo "$resp" | grep -Eo "status\":\s\d+" | sed s/status\":\\s//)
+  local server_msg=$(echo "$resp" | grep -Eo "message\":\s[\w\s]+" | sed s/message\":\\s//)
+  local msg_id=$(echo "$resp" | grep -Eo "messageId\":\"\w+" | sed s/messageId\":\"//)
   if [ -n "$msg_id" ] ; then
     RETURN_VAL="$msg_id"
   else
@@ -79,10 +79,10 @@ check_status() {
     -sH "Authorization: Bearer $TOKEN" \
     "https://api.telstra.com/v1/sms/messages/$id")
   [ $? -ne 0 ] && return S{E_SRV_TIMEOUT}
-  local ph=$(echo "$resp" | grep -Po "to\":\"\K\d+" | sed s/^61/0/)
-  local received=$(echo "$resp" | grep -Po "receivedTimestamp\":\"\K[\w:-]+")
-  local sent=$(echo "$resp" | grep -Po "sentTimestamp\":\"\K[\w:-]+")
-  local status=$(echo "$resp" | grep -Po "status\":\"\K\w+")
+  local ph=$(echo "$resp" | grep -Eo "to\":\"[0-9]+" | sed s/to\":\"// | sed s/^61/0/)
+  local received=$(echo "$resp" | grep -Eo "receivedTimestamp\":\"[a-zA-Z0-9:-]+" | sed s/receivedTimestamp\":\"//)
+  local sent=$(echo "$resp" | grep -Eo "sentTimestamp\":\"[a-zA-Z0-9:-]+" | sed s/sentTimestamp\":\"//)
+  local status=$(echo "$resp" | grep -Eo "status\":\"\w+" | sed s/status\":\"//)
   if [ -n "$status" ] ; then
     RETURN_VAL="$(printf "%10s | %19s | %19s | %s\n" "$ph" "$received" "$sent" "$status")"
   else
@@ -108,20 +108,20 @@ check_response() {
                -sH "Authorization: Bearer $TOKEN" \
   "https://api.telstra.com/v1/sms/messages/$id/response")
   [ $? -ne 0 ] && return ${E_SRV_TIMEOUT}
-  local ph=$(echo "$resp" | grep -Po "from\":\"\K\d+" | sed s/^61/0/)
-  local date=$(echo "$resp" | grep -Po "Timestamp\":\K[^,]+")  #\"\K[\w:-]+")
-  local content=$(echo "$resp" | grep -Po "content\":\"\K.+(?=\")")
-  local server_status=$(echo "$resp" | grep -Po "status\":\s\K\d+")
-  local server_msg=$(echo "$resp" | grep -Po "message\":\s\K[\w\s]+(?= })")
+  local ph=$(echo "$resp" | grep -Eo "from\":\"[0-9]+" | sed s/from\":\"// | sed s/^61/0/)
+  local ts=$(echo "$resp" | grep -Eo "Timestamp\":[^,]+" | sed s/Timestamp\":\"// | sed s/+..:..\"$//)
+  local content=$(echo "$resp" | grep -Eo "content\":\".+\"" | sed s/content\":\"// | sed s/.$//)
+  local server_status=$(echo "$resp" | grep -Eo "status\":\s[0-9]+" | sed s/status\":\\s//)
+  local server_msg=$(echo "$resp" | grep -Eo "message\":\s[a-zA-Z0-9\s]+" | sed s/message\":\\s// | sed s/ \}$//)
   if [ -n "$server_status" ] ; then
     RETURN_VAL="$server_status $server_msg"
     return ${E_SRV_ERR}
   elif [ "$date" = 'null' ] ; then
     return ${E_NO_REPLY}
   else
-    date=$(echo $date | tr -d '"' | grep -Po "^[\w:-]+")
-    RETURN_VAL="$(printf "%10s | %19s | %s\n" "$ph" "$date" "$content")"
-  fi	
+    date=$(echo $date | tr -d '"' | grep -Eo "^[\w:-]+")
+    RETURN_VAL="$(printf "%10s | %19s | %s\n" "$ph" "$ts" "$content")"
+  fi
 }
 
 ##########
@@ -158,8 +158,8 @@ show_screen() {
 ###########
 get_input() {
   local type=$1
-  local text=$2		 
-  local prompt=$3	
+  local text=$2
+  local prompt=$3
   case $type in
     PH)
       read -p "$prompt" -i "$text" -e RETURN_VAL
@@ -173,7 +173,7 @@ get_input() {
           show_screen
           printf "${BOLD_RED}Message has ${#RETURN_VAL} characters${NTA}\n"
         else
-          break 
+          break
         fi
       done
     ;;
@@ -304,7 +304,7 @@ opt_status() {
       SCREEN_PROMPT="${BOLD_RED}Server timeout${NTA}\n\n1) Go back\t2) Back to main menu"
     elif [ $return_code -eq ${E_SRV_ERR} ] ; then
       SCREEN_PROMPT="Delivery status for message id: $msg_id\n\n${BOLD_RED}No results. Please check message id.${NTA}\n\n1) Go back\t2) Back to main menu"
-    fi 
+    fi
     while true ; do
       show_screen
       read -p "Choice:" opt
@@ -418,7 +418,7 @@ opt_statuses() {
   if [ -t 0 ] ; then stty -echo -icanon time 0 min 0; fi
   for id in $msg_ids ; do
     # read user input. redirect to /dev/null is to stop 'resource temporarily unavail' error in cygwin
-    key=$(cat 2>/dev/null)	    
+    key=$(cat 2>/dev/null)
     if echo "$key" | grep c ; then		# user wants to cancel operation
       if [ -t 0 ] ; then stty $SAVE_TERM; fi
       SCREEN_PROMPT="Checking all statuses in file ${DATA_FILE}\n\nProcessed message ID $i / $msg_id_count\n\n$(printf "%-10s | %-19s | %-19s | %s\n" "Mobile" "Received" "Sent" "Status")\n$all_res\n\n${BOLD_RED}Operation cancelled.${NTA} Press ENTER to go back to main menu"
@@ -440,7 +440,7 @@ opt_statuses() {
     fi
     SCREEN_PROMPT="Checking all statuses in file ${DATA_FILE}\n\n${BOLD_YELLOW}Processed message ID $i / $msg_id_count\t\tc) Cancel operation${NTA}\n\n$(printf "%-10s | %-19s | %-19s | %s\n" "Mobile" "Received" "Sent" "Status")\n$all_res"
     show_screen
-  done 
+  done
   if [ -t 0 ] ; then stty $SAVE_TERM; fi
   if [ $res_count -gt 0 ] ; then
     SCREEN_PROMPT="Found $res_count results from $msg_id_count message IDs:\n\n$(printf "%-10s | %-19s | %-19s | %s\n" "Mobile" "Received" "Sent" "Status")\n$all_res\nPress ENTER to return"
@@ -448,7 +448,7 @@ opt_statuses() {
     SCREEN_PROMPT="Found 0 results from $msg_id_count message IDs.\n\nPress ENTER to return"
   fi
   show_screen
-  read REPLY 
+  read REPLY
 }
 
 #############
@@ -500,7 +500,7 @@ opt_responses() {
         date=$(echo "$res" | cut -d'|' -f2 | sed s/\s//g)
         date=$(date -d "$date" +"%s")
         msg=$(echo "$res" | cut -d'|' -f3 | cut -c2-)
-        sed -r -iOLD "s/${id}.*/&\|$date\|$msg/" "$DATA_FILE"       
+        sed -r -iOLD "s/${id}.*/&\|$date\|$msg/" "$DATA_FILE"
       elif [ $return_code -eq ${E_SRV_TIMEOUT} ] ; then
         all_res="$all_res${BOLD_RED}Server timeout${NTA}\n"
         SCREEN_PROMPT="${BOLD_YELLOW}Processed messaged ID $i / $msg_id_count\t\t c) Cancel operation${NTA}\n\n$(printf "%-10s | %-19s | %-s\n" "Mobile" "Date" "Message")\n$all_res"
@@ -511,10 +511,10 @@ opt_responses() {
         while true ; do
           show_screen
           case $opt in
-            1) 
+            1)
               continue 2
             ;;
-            2) 
+            2)
               all_res="${all_res}${BOLD_RED}Deleted message ID ${id}\n"
               sed -n -iOLD "/${id}/!p" "$DATA_FILE"
               continue 2;;
@@ -530,7 +530,7 @@ opt_responses() {
       ph=$(echo "$res" | cut -d'|' -f2)
       date=$(echo "$res" | cut -d'|' -f3)
       # convert time field to human readable format
-      date=$(date -d @$date +%Y-%m-%dT%H:%M:%S)       
+      date=$(date -d @$date +%Y-%m-%dT%H:%M:%S)
       res=$(printf "%10s | %19s | %s" "$ph" "$date" "$msg")
     fi
     if [ -n "$res" ] ; then
@@ -576,13 +576,13 @@ opt_message_chain() {
   local msg_id
   local date			# date of message
   local msg
-  local resp			# response from telstra api 
-  local sorted		# all messages sorted by time 
+  local resp			# response from telstra api
+  local sorted		# all messages sorted by time
   local dir			# inbound/outbound direction
-  local res			
-  local all_res		
+  local res
+  local all_res
   local key			# keypress for cancelling operation
-  local unsorted		
+  local unsorted
   local return_code
   OIFS=$IFS
   IFS=$'\n'
@@ -597,9 +597,9 @@ opt_message_chain() {
     ph="$RETURN_VAL"
     [ -z "$ph" ] && continue;
     [ "$ph" = b ] && break;
-    rows=$(cat "$DATA_FILE" | grep -P "[^\|]+\|$ph") 
+    rows=$(cat "$DATA_FILE" | grep -E "[^\|]+\|$ph")
     row_count=$(echo "$rows" | sed '/^$/d' | wc -l)
-    if [ -z "$rows" ] ; then 
+    if [ -z "$rows" ] ; then
       SCREEN_PROMPT="No messages for mobile: $ph\n\n1) Go back 2) Back to main menu"
       while true ; do
         show_screen
@@ -625,7 +625,7 @@ opt_message_chain() {
       msg=$(echo "$line" | cut -d'|' -f4)
       if [ "$msg_id" = "OUTBOUND" ] ; then
         unsorted="$unsorted$(printf "O|%s|%s\n" "$date" "$msg")\n"
-      else # inbound. a message id 
+      else # inbound. a message id
         if [ -z "$msg" ] ; then
           check_response "$msg_id"
           return_code=$?
@@ -652,7 +652,7 @@ opt_message_chain() {
       fi
     done
     # sort messages by time in ascending order
-    sorted=$(printf "$unsorted" | sort -t'|' -n -k2)     
+    sorted=$(printf "$unsorted" | sort -t'|' -n -k2)
     i=0
     row_count=$(echo "$sorted" | wc -l)
     for line in $sorted ; do
@@ -668,7 +668,7 @@ opt_message_chain() {
       i=$((i + 1))
       date=$(echo "$line" | cut -d'|' -f2)
       # convert time field to human readable format
-      date=$(date -d @$date +%Y-%m-%dT%H:%M:%S)       
+      date=$(date -d @$date +%Y-%m-%dT%H:%M:%S)
       dir=$(echo $line | cut -c1)
       msg=$(echo $line | cut -d'|' -f3)
       res=$(printf "%-11s | %s | %s\n" "$dir" "$date" "$msg")
@@ -702,13 +702,13 @@ opt_message_chain() {
 ############
 clean_up() {
   printf "\033c\r" # clears screen. compatible with VT100 terminals
-  echo "Cleaning up before exit. Restore $DATA_FILE with ${DATA_FILE}OLD if needed" 
+  echo "Cleaning up before exit. Restore $DATA_FILE with ${DATA_FILE}OLD if needed"
   stty $SAVE_TERM
   exit 1
 }
 
 ###########
-# Check whether authentication token is expired  
+# Check whether authentication token is expired
 # Globals:
 #   TOKEN
 #   SCREEN_PROMPT
@@ -727,8 +727,8 @@ check_token() {
     TOKEN=$(curl --connect-timeout 5 -m 5 -s "https://api.telstra.com/v1/oauth/token?client_id=$APP_KEY&client_secret=$APP_SECRET&grant_type=client_credentials&scope=SMS")
     [ $? -ne 0 ] && return ${E_SRV_TIMEOUT}
     TOKEN_INTERVAL=$(($(echo "$TOKEN" \
-                        | grep -Po "expires_in\":\s*\"\K\d+") - 60)) \
-    TOKEN=$(echo $TOKEN | grep -Po "access_token\": \"\K\w+")
+                        | grep -Eo "expires_in\":\s*\"\d+" | sed s/expires_in\":\\s*\"//) - 60)) \
+    TOKEN=$(echo $TOKEN | grep -Eo "access_token\": \"\w+" | sed s/access_token\":\\s\"//)
     TOKEN_EXPIRE=$(($(date +%s) + $TOKEN_INTERVAL))
     sed -i "4c $TOKEN_EXPIRE" "$KEY_FILE"
     sed -i "3c $TOKEN" "$KEY_FILE"
@@ -739,31 +739,31 @@ main() {
   local token_update # time in seconds when token needs updating
   if [ $# -ne 2 ] && [ $# -ne 4 ] && [ $# -ne 3 ] ; then
     printf "Usage: $0 {api key file} {data file} [mobile "message"]
-  
+
   \tmobile - eg.0412345678
-  \tmessage - Message must be wrapped in double quotes otherwise only the first word will be sent.  
+  \tmessage - Message must be wrapped in double quotes otherwise only the first word will be sent.
 
 \tIf the message itself contains a double quote, you must replace it with \\\\\"
-\tEg. "hi" becomes \\\\\"hi\\\\\". 
-\t'$' must be replaced with \\\\$ 
-\tEg. \$2 becomes \\\\\$2 
+\tEg. "hi" becomes \\\\\"hi\\\\\".
+\t'$' must be replaced with \\\\$
+\tEg. \$2 becomes \\\\\$2
 \tIf longer than 160 characters, message is truncated
 
   \tdata file - stores message data. Can read from existing file or create a new one if it doesn't exist.
   \tapi key file - If you don't have an app key/secret, sign up for a T.Dev account at https://dev.telstra.com/ and create a new app using the SMS API.  Put the app key on line 1 and app secret on line 2 of the api key file\n"
     exit 1
   fi
-  
+
   # check key file exists and permissions
   [ -e "$1" ] || { echo "Key file $1 not found"; exit 1; }
-  [ -r "$1" ] && [ -w "$1" ] || { echo "Key file $1 must be readable and writable. Check permissions"; exit 1; } 
-  
+  [ -r "$1" ] && [ -w "$1" ] || { echo "Key file $1 must be readable and writable. Check permissions"; exit 1; }
+
   KEY_FILE="$1"
   APP_KEY=$(sed -n 1p "$KEY_FILE")
   APP_SECRET=$(sed -n 2p "$KEY_FILE")
   TOKEN=$(sed -n 3p "$KEY_FILE")
   TOKEN_EXPIRE=$(sed -n 4p "$KEY_FILE")
-  
+
   if [ -z "$TOKEN" ] ; then # no token found in key file
     TOKEN=$(curl --connect-timeout 5 -m 5 -s "https://api.telstra.com/v1/oauth/token?client_id=$APP_KEY&client_secret=$APP_SECRET&grant_type=client_credentials&scope=SMS")
     if [ $? -ne 0 ] ; then
@@ -772,13 +772,13 @@ main() {
       read REPLY
       exit
     fi
-    TOKEN_INTERVAL=$(($(echo "$TOKEN" | grep -Po "expires_in\":\s*\"\K\d+") - 60))
-    TOKEN=$(echo "$TOKEN" | grep -Po "access_token\": \"\K\w+")
+    TOKEN_INTERVAL=$(($(echo "$TOKEN" | grep -Eo "expires_in\":\s*\"\d+" | sed s/expires_in\":\\s*\"//) - 60))
+    TOKEN=$(echo "$TOKEN" | grep -Eo "access_token\": \"\w+" | sed s/access_token\":\\s\"//)
     echo "$TOKEN" >> "$KEY_FILE"
     TOKEN_EXPIRE=$(($(date +%s) + $TOKEN_INTERVAL))
     echo "$TOKEN_EXPIRE" >> "$KEY_FILE"
   fi
-  
+
   # check data file exists and permissions
   if [ -e "$2" ] ; then
     [ -w "$2" ] && [ -r "$2" ] || { echo "Data file $2 be readable and writable. Check permissions"; exit 1; }
@@ -786,7 +786,7 @@ main() {
     touch "$2"
   fi
   DATA_FILE="$2"
-  
+
   # send text message from command line
   if [ $# -eq 4 ] ; then
     send_text "$3" "${4:0:160}"
@@ -800,18 +800,18 @@ main() {
       exit 1
     fi
   fi
-  
+
   trap clean_up SIGINT SIGTERM
   while true ; do
     token_update=$(($TOKEN_EXPIRE - $(date +%s)))
     [ $token_update -gt 0 ] && token_update="${token_update}s" || token_update='On next operation'
     SCREEN_TITLE="Main Menu"
-    SCREEN_PROMPT="${BOLD_GREEN}   
+    SCREEN_PROMPT="${BOLD_GREEN}
     _   _    _    __  _   _  __   __   _   _  _  __ __
    /o| / \  / \  / _|| \_/ |/ _| |  \ / \ | || | \ V /
-    ||| 0 || 0 | \_ \| \_/ |\_ \ | o ) o || || |_ \ / 
+    ||| 0 || 0 | \_ \| \_/ |\_ \ | o ) o || || |_ \ /
     L| \_/  \_/  |__/|_| |_||__/ |__/|_n_||_||___||_| ${NTA}
-                                                     
+
 ${BOLD_YELLOW}Send up to 100 SMS free per day to any Australian mobile${NTA}
 
    Data file: [${DATA_FILE}]
@@ -834,7 +834,7 @@ q) Quit"
       6) opt_message_chain;;
       q)
         printf "\033c\r" # clears screen. compatible with VT100 terminals
-        echo Bye 
+        echo Bye
         break
       ;;
     esac
