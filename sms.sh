@@ -806,13 +806,7 @@ main() {
     token_update=$(($TOKEN_EXPIRE - $(date +%s)))
     [ $token_update -gt 0 ] && token_update="${token_update}s" || token_update='On next operation'
     SCREEN_TITLE="Main Menu"
-    SCREEN_PROMPT="${BOLD_GREEN}
-     ____ ____  __.   _________   _____    _________
-    /_   |    |/ _|  /   _____/  /     \  /   _____/
-     |   |      <    \_____  \  /  \ /  \ \_____  \
-     |   |    |  \   /        \/    Y    \/        \
-     |___|____|__ \ /_______  /\____|__  /_______  /
-                 \/         \/         \/        \/ ${NTA}
+    SCREEN_PROMPT="
 
 ${BOLD_YELLOW}Send up to 1000 SMS free per month to any Australian mobile${NTA}
 
