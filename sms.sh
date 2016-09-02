@@ -807,12 +807,14 @@ main() {
     [ $token_update -gt 0 ] && token_update="${token_update}s" || token_update='On next operation'
     SCREEN_TITLE="Main Menu"
     SCREEN_PROMPT="${BOLD_GREEN}
-    _   _    _    __  _   _  __   __   _   _  _  __ __
-   /o| / \  / \  / _|| \_/ |/ _| |  \ / \ | || | \ V /
-    ||| 0 || 0 | \_ \| \_/ |\_ \ | o ) o || || |_ \ /
-    L| \_/  \_/  |__/|_| |_||__/ |__/|_n_||_||___||_| ${NTA}
+     ____ ____  __.   _________   _____    _________
+    /_   |    |/ _|  /   _____/  /     \  /   _____/
+     |   |      <    \_____  \  /  \ /  \ \_____  \
+     |   |    |  \   /        \/    Y    \/        \
+     |___|____|__ \ /_______  /\____|__  /_______  /
+                 \/         \/         \/        \/ ${NTA}
 
-${BOLD_YELLOW}Send up to 100 SMS free per day to any Australian mobile${NTA}
+${BOLD_YELLOW}Send up to 1000 SMS free per month to any Australian mobile${NTA}
 
    Data file: [${DATA_FILE}]
    Token update ETA: [${token_update}]
