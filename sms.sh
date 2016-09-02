@@ -49,8 +49,8 @@ send_text() {
     -d "{\"to\":\"$phone\", \"body\":\"$msg\"}" \
     "https://api.telstra.com/v1/sms/messages")
   [ $? -ne 0 ] && return ${E_SRV_TIMEOUT}
-  local server_status=$(echo "$resp" | grep -Eo "status\":\s\d+" | sed s/status\":\\s//)
-  local server_msg=$(echo "$resp" | grep -Eo "message\":\s[\w\s]+" | sed s/message\":\\s//)
+  local server_status=$(echo "$resp" | grep -Eo "status\":\s\d+" | sed s/status\":[[:space:]]//)
+  local server_msg=$(echo "$resp" | grep -Eo "message\":\s[\w\s]+" | sed s/message\":[[:space:]]//)
   local msg_id=$(echo "$resp" | grep -Eo "messageId\":\"\w+" | sed s/messageId\":\"//)
   if [ -n "$msg_id" ] ; then
     RETURN_VAL="$msg_id"
@@ -111,8 +111,8 @@ check_response() {
   local ph=$(echo "$resp" | grep -Eo "from\":\"[0-9]+" | sed s/from\":\"// | sed s/^61/0/)
   local ts=$(echo "$resp" | grep -Eo "Timestamp\":[^,]+" | sed s/Timestamp\":\"// | sed s/+..:..\"$//)
   local content=$(echo "$resp" | grep -Eo "content\":\".+\"" | sed s/content\":\"// | sed s/.$//)
-  local server_status=$(echo "$resp" | grep -Eo "status\":\s[0-9]+" | sed s/status\":\\s//)
-  local server_msg=$(echo "$resp" | grep -Eo "message\":\s[a-zA-Z0-9\s]+" | sed s/message\":\\s// | sed s/ \}$//)
+  local server_status=$(echo "$resp" | grep -Eo "status\":\s[0-9]+" | sed s/status\":[[:space:]]//)
+  local server_msg=$(echo "$resp" | grep -Eo "message\":\s[a-zA-Z0-9\s]+" | sed s/message\":[[:space:]]// | sed s/ \}$//)
   if [ -n "$server_status" ] ; then
     RETURN_VAL="$server_status $server_msg"
     return ${E_SRV_ERR}
@@ -727,8 +727,8 @@ check_token() {
     TOKEN=$(curl --connect-timeout 5 -m 5 -s "https://api.telstra.com/v1/oauth/token?client_id=$APP_KEY&client_secret=$APP_SECRET&grant_type=client_credentials&scope=SMS")
     [ $? -ne 0 ] && return ${E_SRV_TIMEOUT}
     TOKEN_INTERVAL=$(($(echo "$TOKEN" \
-                        | grep -Eo "expires_in\":\s*\"\d+" | sed s/expires_in\":\\s*\"//) - 60)) \
-    TOKEN=$(echo $TOKEN | grep -Eo "access_token\": \"\w+" | sed s/access_token\":\\s\"//)
+                        | grep -Eo "expires_in\":\s*\"\d+" | sed s/expires_in\":[[:space:]]*\"//) - 60)) \
+    TOKEN=$(echo $TOKEN | grep -Eo "access_token\": \"\w+" | sed s/access_token\":[[:space:]]\"//)
     TOKEN_EXPIRE=$(($(date +%s) + $TOKEN_INTERVAL))
     sed -i "4c $TOKEN_EXPIRE" "$KEY_FILE"
     sed -i "3c $TOKEN" "$KEY_FILE"
@@ -772,8 +772,8 @@ main() {
       read REPLY
       exit
     fi
-    TOKEN_INTERVAL=$(($(echo "$TOKEN" | grep -Eo "expires_in\":\s*\"\d+" | sed s/expires_in\":\\s*\"//) - 60))
-    TOKEN=$(echo "$TOKEN" | grep -Eo "access_token\": \"\w+" | sed s/access_token\":\\s\"//)
+    TOKEN_INTERVAL=$(($(echo "$TOKEN" | grep -Eo "expires_in\":\s*\"\d+" | sed s/expires_in\":[[:space:]]*\"//) - 60))
+    TOKEN=$(echo "$TOKEN" | grep -Eo "access_token\": \"\w+" | sed s/access_token\":[[:space:]]\"//)
     echo "$TOKEN" >> "$KEY_FILE"
     TOKEN_EXPIRE=$(($(date +%s) + $TOKEN_INTERVAL))
     echo "$TOKEN_EXPIRE" >> "$KEY_FILE"
